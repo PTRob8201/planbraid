@@ -1,0 +1,89 @@
+/*!
+ * PlanBraid - outlining, project tracking, and material orders.
+ * Copyright (C) 2026 Robert Wasniowski
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ * Licensed under GNU AGPL version 3 or later; see LICENSE in the release root.
+ * Distributed WITHOUT ANY WARRANTY, including MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ */
+@import "./styles.css";
+@import "./agenda-notes.css";
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+
+.ui-icon {
+    @apply inline-block shrink-0;
+    width: 18px;
+    height: 18px;
+    vertical-align: middle;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.ui-icon-filled { fill: currentColor; }
+.nav-glyph { width: 20px; flex: 0 0 20px; }
+.project-menu-icon { vertical-align: middle; }
+.node-star .ui-icon, .bullet .ui-icon { width: 14px; height: 14px; }
+.priority-option[aria-pressed="true"]::after {
+    content: '';
+    width: 6px;
+    height: 10px;
+    border: solid var(--green);
+    border-width: 0 1.8px 1.8px 0;
+    transform: rotate(45deg);
+}
+:is(.nav-glyph, .top-button, .node-action-icon, .template-icon-button, .new-template,
+    .rich-note-toolbar, .rich-note-group, .agenda-edit-toolbar, .agenda-toolbar-arrow,
+    .agenda-card-action, .agenda-sheet-controls) svg:not(.brand-mark) {
+    width: 18px;
+    height: 18px;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+:root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) .sidebar {
+    --sidebar-width: 236px;
+    --sidebar-row-height: 36px;
+    padding: 20px 12px 14px;
+    background: var(--surface);
+}
+:root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) :is(.nav-item, .doc-item, .new-doc, .space-toggle) {
+    color: var(--text);
+}
+:root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) :is(.nav-item.active, .doc-item.active) {
+    color: var(--text);
+    background: var(--accent-soft);
+}
+:root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) .topbar { background: var(--surface); }
+:root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) .content { padding-top: 30px; }
+:root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) .doc-title { color: var(--text); }
+:root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) .node-text:not([data-highlight]):not(.completed) { color: var(--text); }
+:root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) :is(.project-outline-heading, #pm-separate-tasks, #project-agenda-content, .dashboard-section, .endless-project, :is(#pm-project-header, #pm-site-info)) {
+    @apply rounded-xl border;
+    border-color: var(--line);
+    background: var(--surface);
+}
+:root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) :is(#pm-separate-tasks, #project-agenda-content, .dashboard-section, .endless-project, :is(#pm-project-header, #pm-site-info)) {
+    padding: 16px 18px;
+    margin-top: 18px;
+}
+:root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) .project-outline-heading {
+    margin-top: 20px;
+    padding: 10px 16px;
+    border-radius: 12px 12px 0 0;
+}
+:root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) .project-outline-heading:has(+ #outline[hidden]) { border-radius: 12px; }
+:root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) #project-outline-heading:not(:has(+ #outline[hidden])) { border-radius: var(--design-radius, 12px) var(--design-radius, 12px) 0 0; }
+:root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) #outline:not([hidden]) {
+    @apply rounded-b-xl border border-t-0;
+    border-color: var(--line);
+    padding: 12px 16px 16px;
+    background: var(--surface);
+}
+@media (max-width: 760px) {
+    :root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) .sidebar { width: min(264px, calc(100vw - 48px)); }
+    :root:is([data-design="modern"], [data-design="minimal"], [data-design="vibrant"], [data-design="fusion"]) .content { padding-top: 24px; }
+}
+

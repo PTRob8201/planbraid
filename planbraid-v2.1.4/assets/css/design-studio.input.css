@@ -1,0 +1,147 @@
+/*!
+ * PlanBraid - outlining, project tracking, and material orders.
+ * Copyright (C) 2026 Robert Wasniowski
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ * Licensed under GNU AGPL version 3 or later; see LICENSE in the release root.
+ * Distributed WITHOUT ANY WARRANTY, including MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+
+:root[data-design="studio"][data-theme="light"] {
+    --page: #f5f4f0;
+    --surface: #fff;
+    --surface-soft: #f4f6f3;
+    --line: #e7ebe5;
+    --text: #253c40;
+    --muted: #647672;
+    --quiet: #899b96;
+    --accent: #c3735b;
+    --accent-soft: #f8ece6;
+    --focus: #8c4f3e;
+    --green: #548774;
+    --action-text: #fff;
+    --shadow: 0 16px 48px rgba(27, 48, 48, .16);
+}
+:root[data-design="studio"][data-theme="sepia"] {
+    --page: #f5ead8;
+    --surface: #fff8eb;
+    --surface-soft: #f0e2cd;
+    --line: #e1d0b6;
+    --text: #44392e;
+    --muted: #786956;
+    --quiet: #897a67;
+    --accent: #a45b40;
+    --accent-soft: #f1dece;
+    --focus: #85492f;
+    --green: #536f4f;
+    --action-text: #fff;
+}
+:root[data-design="studio"][data-theme="dark"] {
+    --page: #192322;
+    --surface: #25322f;
+    --surface-soft: #2e3c37;
+    --line: #43524b;
+    --text: #edf2e9;
+    --muted: #b7c8bb;
+    --quiet: #9eafa3;
+    --accent: #e59b7f;
+    --accent-soft: #503c34;
+    --focus: #f3b49b;
+    --green: #add4b7;
+    --action-text: #221e1a;
+}
+:root[data-design="studio"] .main { @apply flex min-w-0 flex-1 flex-col; }
+:root[data-design="studio"] .sidebar {
+    @apply flex-col border-r-0;
+    --sidebar-width: 240px;
+    --sidebar-row-height: 36px;
+    padding: 22px 14px 14px;
+    color: #d3e2dd;
+    background: #162b35;
+}
+:root[data-design="studio"] .brand {
+    @apply items-center gap-3;
+    padding: 0 8px 26px;
+    color: #fff;
+}
+:root[data-design="studio"] .brand .brand-mark { width: 44px; height: 44px; }
+:root[data-design="studio"] .sidebar :is(.sidebar-label, .nav-glyph, .nav-count, .doc-count, .small-icon-btn) { color: #aabdb9; }
+:root[data-design="studio"] .sidebar :is(.nav-item, .doc-item, .new-doc, .space-toggle) {
+    @apply rounded-lg;
+    color: #c4d2ce;
+}
+:root[data-design="studio"] .sidebar :is(.nav-item, .doc-item, .new-doc, .space-toggle):hover,
+:root[data-design="studio"] .sidebar .small-icon-btn:hover,
+:root[data-design="studio"] .sidebar .sidebar-menu[open] summary { color: #fff; background: rgba(255,255,255,.1); }
+:root[data-design="studio"] .sidebar :is(.nav-item, .doc-item).active { color: #fff; background: rgba(255,255,255,.12); }
+:root[data-design="studio"] .sidebar :is(.nav-item, .doc-item).active .nav-glyph { color: #e4a18a; }
+:root[data-design="studio"] .sidebar .sidebar-tag-list .nav-item { color: var(--tag-text); background: var(--tag-background); }
+:root[data-design="studio"] .sidebar .sidebar-tag-list .nav-item:is(:hover, .active) { color: var(--tag-active-text); background: var(--tag-active); }
+:root[data-design="studio"] .sidebar-menu-list { color: var(--text); }
+:root[data-design="studio"] .topbar {
+    @apply flex items-center justify-between;
+    background: var(--surface);
+}
+:root[data-design="studio"] .content { padding-top: 30px; }
+:root[data-design="studio"] .doc-title {
+    @apply font-semibold tracking-tight;
+    color: var(--text);
+}
+:root[data-design="studio"] #doc-title { font-size: calc(clamp(27px, 3vw, 36px) * var(--font-scale, 1)); }
+:root[data-design="studio"] .doc-subtitle { color: var(--muted); }
+:root[data-design="studio"] :is(#pm-project-header, #pm-site-info) {
+    @apply rounded-2xl border-0;
+    margin: 22px 0 14px;
+    padding: 22px 24px;
+    color: #f8fbf8;
+    background: #1f4045;
+}
+:root[data-design="studio"] :is(#pm-project-header, #pm-site-info) :is(.pm-project-site-details, .toolbar-button) { color: #d3e7dd; }
+:root[data-design="studio"] :is(#pm-project-header, #pm-site-info) .toolbar-button:hover { color: #fff; background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.2); }
+:root[data-design="studio"] :is(#pm-project-header, #pm-site-info) progress { accent-color: #dfa489; }
+:root[data-design="studio"] .project-outline-heading,
+:root[data-design="studio"] #pm-separate-tasks,
+:root[data-design="studio"] #project-agenda-content,
+:root[data-design="studio"] :is(.dashboard-section, .endless-project) {
+    @apply rounded-2xl border;
+    border-color: var(--line);
+    background: var(--surface);
+    box-shadow: 0 8px 30px rgba(27,48,48,.04);
+}
+:root[data-design="studio"] .project-outline-heading {
+    @apply items-center;
+    margin-top: 22px;
+    padding: 12px 18px;
+    border-radius: 16px 16px 0 0;
+    box-shadow: none;
+}
+:root[data-design="studio"] .project-outline-heading:has(+ #outline[hidden]) { border-radius: 16px; }
+:root[data-design="studio"] #outline:not([hidden]) {
+    @apply rounded-b-2xl border border-t-0;
+    border-color: var(--line);
+    padding: 12px 18px 18px;
+    background: var(--surface);
+}
+:root[data-design="studio"] #pm-separate-tasks { margin-top: 22px; padding: 16px 18px; }
+:root[data-design="studio"] .pm-separate-heading {
+    @apply items-center;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+}
+:root[data-design="studio"] .pm-task-row { @apply rounded-xl; }
+:root[data-design="studio"] .pm-task-row:hover,
+:root[data-design="studio"] .pm-task-row:focus-within { background: var(--surface-soft); }
+:root[data-design="studio"] #project-agenda-content { margin-top: 22px; padding: 18px; }
+:root[data-design="studio"] .dashboard-section { padding: 18px; }
+:root[data-design="studio"] .endless-project { padding: 18px; }
+:root[data-design="studio"] :is(.modal, .priority-menu, .project-menu-list, .top-menu-list, .sidebar-menu-list, .search-results) {
+    @apply rounded-xl;
+    border-color: var(--line);
+    background: var(--surface);
+}
+:root[data-design="studio"] :is(.agenda-card, .pm-board-card, .settings-card) { @apply rounded-xl; }
+@media (max-width: 760px) {
+    :root[data-design="studio"] .sidebar { width: min(264px, calc(100vw - 48px)); }
+    :root[data-design="studio"] .content { padding-top: 24px; }
+}

@@ -1,0 +1,10 @@
+/*!
+ * PlanBraid - outlining, project tracking, and material orders.
+ * Copyright (C) 2026 Robert Wasniowski
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ * Licensed under GNU AGPL version 3 or later; see LICENSE in the release root.
+ * Distributed WITHOUT ANY WARRANTY, including MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

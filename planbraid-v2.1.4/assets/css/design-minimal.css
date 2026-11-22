@@ -1,0 +1,61 @@
+/*! tailwindcss v4.3.5 | MIT License | https://tailwindcss.com */
+/*!
+ * PlanBraid - outlining, project tracking, and material orders.
+ * Copyright (C) 2026 Robert Wasniowski
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ * Licensed under GNU AGPL version 3 or later; see LICENSE in the release root.
+ * Distributed WITHOUT ANY WARRANTY, including MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ */
+@layer theme {
+  :root, :host {
+    --radius-sm: 0.25rem;
+  }
+}
+@layer utilities;
+:root[data-design="minimal"] {
+  --design-radius: 2px;
+}
+:root[data-design="minimal"][data-theme="light"] {
+  --page: #f7f7f6;
+  --surface: #fff;
+  --surface-soft: #f0f0ef;
+  --line: #dededb;
+  --text: #292a2a;
+  --muted: #626563;
+  --quiet: #787b79;
+  --accent: #363b39;
+  --accent-soft: #ebedeb;
+  --focus: #343a37;
+  --action-text: #fff;
+}
+:root[data-design="minimal"][data-theme="dark"] {
+  --page: #181a19;
+  --surface: #222523;
+  --surface-soft: #2d302e;
+  --line: #494e4a;
+  --text: #eff1ee;
+  --muted: #bdc3bd;
+  --quiet: #a8afa8;
+  --accent: #d3ddd4;
+  --accent-soft: #38413a;
+  --focus: #d3ddd4;
+  --action-text: #18211a;
+}
+:root[data-design="minimal"][data-theme="sepia"] {
+  --accent: #5f554a;
+  --accent-soft: #e9dfcf;
+  --focus: #50463e;
+}
+:root[data-design="minimal"] :is(.project-outline-heading, #pm-separate-tasks, #project-agenda-content, .dashboard-section, .endless-project, :is(#pm-project-header, #pm-site-info), .modal, .agenda-card, .pm-board-card, .settings-card) {
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+:root[data-design="minimal"] #outline:not([hidden]) {
+  border-bottom-right-radius: var(--radius-sm);
+  border-bottom-left-radius: var(--radius-sm);
+}
+:root[data-design="minimal"] :is(.app, #modal-root) svg:not(.brand-mark) {
+  stroke-width: 1.4;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}

@@ -1,0 +1,2184 @@
+<!DOCTYPE html>
+<!--
+PlanBraid - outlining, project tracking, and material orders.
+Copyright (C) 2026 Robert Wasniowski
+SPDX-License-Identifier: AGPL-3.0-or-later
+Licensed under GNU AGPL version 3 or later; see LICENSE in the release root.
+Distributed WITHOUT ANY WARRANTY, including MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PlanBraid PM — Project, Milestone & Task Tracker</title>
+  <link rel="stylesheet" href="assets/css/shared-tracker.css?v=2.1.4" />
+  <style>
+    /* Custom subtle scrollbars for Kanban & drawers */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    .kanban-dropzone.drag-over {
+      background-color: rgba(241, 245, 249, 0.9);
+      outline: 2px dashed #6366f1;
+      outline-offset: -4px;
+    }
+    .card-dragging {
+      opacity: 0.45;
+      transform: rotate(1deg);
+    }
+    .summary-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5rem;
+      max-width: 800px;
+    }
+    @media (min-width: 640px) {
+      .summary-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (min-width: 900px) {
+      .summary-metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    }
+    .pm-menu { margin-left: auto; }
+    .pm-menu summary { list-style: none; cursor: pointer; }
+    .pm-menu summary::-webkit-details-marker { display: none; }
+    .pm-menu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 40; min-width: 160px; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-100 selection:text-indigo-900">
+
+  <div id="loadingOverlay" role="status" class="fixed inset-0 z-[100] bg-white/90 flex flex-col items-center justify-center gap-3 p-6 text-center">
+    <p id="loadingMessage">Loading shared tracker…</p>
+    <button id="retryLoad" type="button" class="hidden rounded-lg bg-slate-900 px-4 py-2 text-white" onclick="window.location.reload()">Reload tracker</button>
+  </div>
+  <!-- Toast Notification Container (Replaces alert/confirm) -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+  <div id="syncError" role="alert" class="hidden fixed bottom-4 left-4 z-50 max-w-lg rounded-lg border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900 shadow-lg"></div>
+
+  <!-- Top Navigation Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-wrap items-center justify-between gap-3 py-3.5">
+        <!-- Brand & Schema Badge -->
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-sm">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-base sm:text-lg font-bold tracking-tight text-slate-900">PlanBraid PM</h1>
+              <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                Shared workspace
+              </span>
+            </div>
+            <p class="text-xs text-slate-500">Project → Milestone → Task &bull; 5-State Lifecycle &bull; 8 Core Fields</p>
+          </div>
+        </div>
+
+        <!-- Primary Action Buttons -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onclick="openHierarchyModal('project')"
+            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition shadow-xs"
+            title="Add Project"
+          >
+            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            <span>+ New Project</span>
+          </button>
+
+          <button
+            type="button"
+            onclick="openHierarchyModal('milestone')"
+            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition shadow-xs"
+            title="Add Milestone"
+          >
+            <span>+ New Milestone</span>
+          </button>
+
+          <button
+            type="button"
+            onclick="openTaskDrawer()"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 transition shadow-sm"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>New Task</span>
+          </button>
+          <details class="pm-menu relative" id="pm-menu">
+            <summary class="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50" aria-label="PlanBraid PM more options" title="More options">
+              <span aria-hidden="true">⋯</span>
+            </summary>
+            <div class="pm-menu-list bg-white rounded-lg border border-slate-200 shadow-lg p-2">
+              <button type="button" class="w-full px-3 py-2 rounded-lg text-sm text-left text-slate-700 hover:bg-slate-50" onclick="document.getElementById('pm-menu').open = false; openSchemaModal()">JSON Schema</button>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-5">
+
+    <!-- KPI Summary Strip -->
+    <section aria-label="Project Summary Metrics" class="summary-metrics">
+      <!-- Total Tasks -->
+      <div class="bg-white rounded-xl border border-slate-200 p-2.5 shadow-2xs">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Visible Tasks</span>
+          <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+        </div>
+        <div class="mt-1.5 flex items-baseline gap-2">
+          <span id="kpiTotal" class="text-lg font-bold text-slate-900">0</span>
+          <span id="kpiTotalSub" class="text-xs text-slate-500">across scope</span>
+        </div>
+      </div>
+
+      <!-- Active (Ready + In Progress) -->
+      <div class="bg-white rounded-xl border border-slate-200 p-2.5 shadow-2xs">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Active Pipeline</span>
+          <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+        </div>
+        <div class="mt-1.5 flex items-baseline gap-2">
+          <span id="kpiActive" class="text-lg font-bold text-indigo-600">0</span>
+          <span id="kpiActiveSub" class="text-xs text-slate-500">Ready + In Progress</span>
+        </div>
+      </div>
+
+      <!-- Blocked (Highlighted Exception Metric) -->
+      <div id="kpiBlockedCard" onclick="switchView('radar')" class="cursor-pointer bg-white rounded-xl border border-slate-200 p-2.5 shadow-2xs hover:border-rose-300 transition">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-rose-700 uppercase tracking-wider">Blocked</span>
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-100 text-rose-700">Radar &rarr;</span>
+        </div>
+        <div class="mt-1.5 flex items-baseline gap-2">
+          <span id="kpiBlocked" class="text-lg font-bold text-rose-600">0</span>
+          <span class="text-xs text-slate-500">needs unblocking</span>
+        </div>
+      </div>
+
+      <!-- Overdue -->
+      <div class="bg-white rounded-xl border border-slate-200 p-2.5 shadow-2xs">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Overdue</span>
+          <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+        </div>
+        <div class="mt-1.5 flex items-baseline gap-2">
+          <span id="kpiOverdue" class="text-lg font-bold text-amber-600">0</span>
+          <span class="text-xs text-slate-500">past due date</span>
+        </div>
+      </div>
+
+      <!-- Completion Progress -->
+      <div class="bg-white rounded-xl border border-slate-200 p-2.5 shadow-2xs flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Completion</span>
+          <span id="kpiPercent" class="text-sm font-bold text-emerald-600">0%</span>
+        </div>
+        <div class="mt-2">
+          <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+            <div id="kpiProgressBar" class="bg-emerald-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+          <p id="kpiDoneSub" class="text-[11px] text-slate-500 mt-1.5">0 of 0 tasks Done</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- View Tabs & Global Filter Controls -->
+    <section class="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+      <!-- View Navigation Tabs -->
+      <div class="border-b border-slate-200 px-3 sm:px-5 pt-2 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70">
+        <nav class="flex items-center gap-1 overflow-x-auto pb-2 sm:pb-0" aria-label="Tracker Views">
+          <button
+            type="button"
+            data-view="board"
+            onclick="switchView('board')"
+            class="view-tab px-3.5 py-2.5 text-xs sm:text-sm font-semibold rounded-t-lg border-b-2 transition whitespace-nowrap flex items-center gap-1.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+            </svg>
+            Execution Board
+          </button>
+
+          <button
+            type="button"
+            data-view="list"
+            onclick="switchView('list')"
+            class="view-tab px-3.5 py-2.5 text-xs sm:text-sm font-semibold rounded-t-lg border-b-2 transition whitespace-nowrap flex items-center gap-1.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+            </svg>
+            All Tasks List
+          </button>
+
+          <button
+            type="button"
+            data-view="my-work"
+            onclick="switchView('my-work')"
+            class="view-tab px-3.5 py-2.5 text-xs sm:text-sm font-semibold rounded-t-lg border-b-2 transition whitespace-nowrap flex items-center gap-1.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            My Active Work
+          </button>
+
+          <button
+            type="button"
+            data-view="radar"
+            onclick="switchView('radar')"
+            class="view-tab px-3.5 py-2.5 text-xs sm:text-sm font-semibold rounded-t-lg border-b-2 transition whitespace-nowrap flex items-center gap-1.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Blocker Radar
+            <span id="tabBlockedBadge" class="px-1.5 py-0.2 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700">0</span>
+          </button>
+
+          <button
+            type="button"
+            data-view="roadmap"
+            onclick="switchView('roadmap')"
+            class="view-tab px-3.5 py-2.5 text-xs sm:text-sm font-semibold rounded-t-lg border-b-2 transition whitespace-nowrap flex items-center gap-1.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Milestone Roadmap
+          </button>
+        </nav>
+
+        <!-- Reference Date Indicator -->
+        <div class="hidden xl:flex items-center gap-1.5 text-xs text-slate-500 pb-2">
+          <span>Today:</span>
+          <span id="todayLabel" class="font-mono font-medium text-slate-700"></span>
+        </div>
+      </div>
+
+      <!-- Global Filter & Search Bar -->
+      <div class="p-3 sm:px-5 sm:py-3.5 bg-white flex flex-wrap items-center gap-2.5">
+        <!-- Keyword Search -->
+        <div class="relative flex-1 min-w-[200px]">
+          <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            id="filterSearch"
+            oninput="handleFilterChange()"
+            placeholder="Search title, notes, or blocker reason..."
+            class="w-full pl-9 pr-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
+          />
+        </div>
+
+        <!-- Project Filter -->
+        <select
+          id="filterProject"
+          onchange="handleProjectFilterChange()"
+          aria-label="Filter by Project"
+          class="px-3 py-1.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="ALL">All Projects</option>
+        </select>
+
+        <!-- Milestone / Phase Filter -->
+        <select
+          id="filterMilestone"
+          onchange="handleFilterChange()"
+          aria-label="Filter by Milestone"
+          class="px-3 py-1.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="ALL">All Milestones / Phases</option>
+        </select>
+
+        <!-- Owner Filter -->
+        <select
+          id="filterOwner"
+          onchange="handleFilterChange()"
+          aria-label="Filter by Owner"
+          class="px-3 py-1.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="ALL">All Owners</option>
+        </select>
+
+        <!-- Priority Filter -->
+        <select
+          id="filterPriority"
+          onchange="handleFilterChange()"
+          aria-label="Filter by Priority"
+          class="px-3 py-1.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="ALL">All Priorities</option>
+          <option value="High">High Priority</option>
+          <option value="Normal">Normal Priority</option>
+          <option value="Low">Low Priority</option>
+        </select>
+
+        <!-- Clear Filters Button -->
+        <button
+          type="button"
+          id="clearFiltersBtn"
+          onclick="clearAllFilters()"
+          class="hidden px-2.5 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition"
+        >
+          Clear Filters
+        </button>
+      </div>
+    </section>
+
+    <!-- Dynamic View Container -->
+    <section id="viewContainer" class="min-h-[460px]">
+      <!-- Rendered dynamically by JS based on activeView -->
+    </section>
+
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- TASK CREATE / EDIT SLIDE-OVER DRAWER                                  -->
+  <!-- ===================================================================== -->
+  <div id="taskDrawerBackdrop" class="fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] z-40 hidden transition-opacity" onclick="closeTaskDrawer()"></div>
+  <aside
+    id="taskDrawer"
+    aria-labelledby="drawerTitle"
+    class="fixed inset-y-0 right-0 max-w-lg w-full bg-white shadow-2xl border-l border-slate-200 z-50 transform translate-x-full transition-transform duration-200 flex flex-col"
+  >
+    <!-- Drawer Header -->
+    <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+      <div>
+        <h2 id="drawerTitle" class="text-base font-bold text-slate-900">Create New Task</h2>
+        <p class="text-xs text-slate-500">All 8 core schema fields &bull; Guardrails active</p>
+      </div>
+      <button type="button" onclick="closeTaskDrawer()" class="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 transition" aria-label="Close drawer">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Drawer Form Body -->
+    <form id="taskForm" onsubmit="saveTaskForm(event)" class="flex-1 overflow-y-auto p-5 space-y-4">
+      <input type="hidden" id="taskIdInput" />
+
+      <!-- Field 1: Title -->
+      <div>
+        <label for="taskTitleInput" class="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
+          1. Task Title <span class="text-rose-600">*</span>
+        </label>
+        <input
+          type="text"
+          id="taskTitleInput"
+          required
+          placeholder="Start with an action verb (e.g., Terminate IDF patch panels)"
+          class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+
+      <!-- Field 6: Project & Milestone/Phase Hierarchy -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+        <div>
+          <label for="taskProjectInput" class="block text-xs font-semibold text-slate-700 mb-1">
+            Parent Project
+          </label>
+          <select
+            id="taskProjectInput"
+            onchange="populateTaskFormMilestones()"
+            class="w-full px-2.5 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          ></select>
+        </div>
+        <div>
+          <label for="taskMilestoneInput" class="block text-xs font-semibold text-slate-700 mb-1">
+            6. Milestone / Phase <span class="text-rose-600">*</span>
+          </label>
+          <select
+            id="taskMilestoneInput"
+            required
+            class="w-full px-2.5 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          ></select>
+        </div>
+      </div>
+
+      <!-- Field 2 (Status) & Field 5 (Priority) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label for="taskStatusInput" class="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
+            2. Status (5-State) <span class="text-rose-600">*</span>
+          </label>
+          <select
+            id="taskStatusInput"
+            onchange="toggleBlockedRequirementUI()"
+            class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="Backlog">Backlog (Unscheduled)</option>
+            <option value="Ready">Ready (Cleared to start)</option>
+            <option value="In Progress">In Progress (Active)</option>
+            <option value="Blocked">Blocked (Stopped / Wall)</option>
+            <option value="Done">Done (Verified)</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="taskPriorityInput" class="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
+            5. Priority <span class="text-rose-600">*</span>
+          </label>
+          <select
+            id="taskPriorityInput"
+            class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="High">High (Critical path / Urgent)</option>
+            <option value="Normal" selected>Normal</option>
+            <option value="Low">Low</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Field 3 (Owner) & Field 4 (Due Date) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label for="taskOwnerInput" class="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
+            3. Single Owner <span class="text-rose-600">*</span>
+          </label>
+          <select
+            id="taskOwnerInput"
+            required
+            class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          ></select>
+          <p class="text-[11px] text-slate-500 mt-1">Strictly 1 owner for clear accountability.</p>
+        </div>
+
+        <div>
+          <label for="taskDueDateInput" class="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
+            4. Due Date <span class="text-rose-600">*</span>
+          </label>
+          <input
+            type="date"
+            id="taskDueDateInput"
+            required
+            class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+      </div>
+
+      <!-- Field 7: Blocked By (Dynamically Highlighted & Required when Status = Blocked) -->
+      <div id="blockedByWrapper" class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 transition-all">
+        <div class="flex items-center justify-between mb-1">
+          <label for="taskBlockedByInput" id="blockedByLabel" class="block text-xs font-semibold uppercase tracking-wider text-slate-700">
+            7. Blocked By (Dependency / Impediment)
+          </label>
+          <span id="blockedRequiredTag" class="hidden px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-rose-600 text-white">
+            Required for Blocked
+          </span>
+        </div>
+        <input
+          type="text"
+          id="taskBlockedByInput"
+          placeholder="e.g., Waiting on electrical inspection sign-off or vendor shipment #402"
+          class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
+        />
+        <p id="blockedHelperText" class="text-[11px] text-slate-500 mt-1">
+          Schema Guardrail: Becomes mandatory whenever Status is set to <strong>Blocked</strong>.
+        </p>
+      </div>
+
+      <!-- Field 8: Notes / Acceptance Criteria -->
+      <div>
+        <label for="taskNotesInput" class="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
+          8. Notes / Acceptance Criteria
+        </label>
+        <textarea
+          id="taskNotesInput"
+          rows="4"
+          placeholder="Define 'Done', reference specs, links, or quick progress logs..."
+          class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        ></textarea>
+      </div>
+    </form>
+
+    <!-- Drawer Footer -->
+    <div class="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+      <button
+        type="button"
+        id="deleteTaskBtn"
+        onclick="deleteCurrentTask()"
+        class="hidden px-3 py-2 rounded-lg text-xs sm:text-sm font-medium text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition"
+      >
+        Delete Task
+      </button>
+      <div class="flex items-center gap-2 ml-auto">
+        <button
+          type="button"
+          onclick="closeTaskDrawer()"
+          class="px-4 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          form="taskForm"
+          class="px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 transition shadow-sm"
+        >
+          Save Task
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================================================================== -->
+  <!-- ADD PROJECT / MILESTONE MODAL                                         -->
+  <!-- ===================================================================== -->
+  <div id="hierarchyModal" role="dialog" aria-modal="true" aria-labelledby="hierarchy-title" class="fixed inset-0 bg-slate-900/50 backdrop-blur-[1px] z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <h3 id="hierarchy-title" class="text-base font-bold text-slate-900"></h3>
+        <button type="button" aria-label="Close dialog" onclick="closeHierarchyModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/70">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-6">
+        <!-- Add New Milestone to Existing Project -->
+        <p id="no-projects-message" class="text-sm text-slate-700" hidden>Create a project first using New Project.</p>
+        <form id="new-milestone-form" onsubmit="createNewMilestone(event)" class="space-y-3" hidden>
+          <h4 class="text-xs font-bold uppercase tracking-wider text-indigo-600">Add Milestone / Phase</h4>
+          <div>
+            <label for="newMilestoneProjectSelect" class="block text-xs font-medium text-slate-700 mb-1">Target Project</label>
+            <select id="newMilestoneProjectSelect" required class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg"></select>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label for="newMilestoneName" class="block text-xs font-medium text-slate-700 mb-1">Milestone Name</label>
+              <input type="text" id="newMilestoneName" required placeholder="e.g., Phase 3: UAT Sign-off" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg" />
+            </div>
+            <div>
+              <label for="newMilestoneDate" class="block text-xs font-medium text-slate-700 mb-1">Target Date</label>
+              <input type="date" id="newMilestoneDate" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg" />
+            </div>
+          </div>
+          <button type="submit" class="w-full py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition">
+            + Add Milestone / Phase
+          </button>
+        </form>
+
+        <!-- Add New Project -->
+        <form id="new-project-form" onsubmit="createNewProject(event)" class="space-y-3" hidden>
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700">Create New Project Container</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label for="newProjectName" class="block text-xs font-medium text-slate-700 mb-1">Project Name</label>
+              <input type="text" id="newProjectName" required placeholder="e.g., Warehouse RFID Rollout" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg" />
+            </div>
+            <div>
+              <label for="newProjectOwner" class="block text-xs font-medium text-slate-700 mb-1">Project Lead</label>
+              <select id="newProjectOwner" class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg"></select>
+            </div>
+          </div>
+          <div>
+            <label for="newProjectFirstMilestone" class="block text-xs font-medium text-slate-700 mb-1">Initial Phase 1 Milestone Name</label>
+            <input type="text" id="newProjectFirstMilestone" required placeholder="e.g., Phase 1: Discovery & Scoping" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg" />
+          </div>
+          <button type="submit" class="w-full py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition">
+            + Create Project + Initial Phase
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- JSON SCHEMA & DATA INSPECTOR MODAL                                    -->
+  <!-- ===================================================================== -->
+  <div id="schemaModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-[1px] z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-3xl w-full max-h-[88vh] flex flex-col overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Live JSON Data & Schema Inspector</h3>
+          <p class="text-xs text-slate-500">Normalized relational structure: projects &rarr; milestones &rarr; tasks</p>
+        </div>
+        <button type="button" onclick="closeSchemaModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/70">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="p-4 bg-slate-900 text-slate-100 flex-1 overflow-auto">
+        <pre id="jsonPreviewContent" class="text-xs font-mono leading-relaxed whitespace-pre-wrap"></pre>
+      </div>
+
+      <div class="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+        <span class="text-xs text-slate-500">Updates automatically with every task edit.</span>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            onclick="copyJsonToClipboard()"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            Copy JSON
+          </button>
+          <button
+            type="button"
+            onclick="downloadJsonFile()"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 transition"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download .json
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- JAVASCRIPT APPLICATION LOGIC                                          -->
+  <!-- ===================================================================== -->
+  <script>
+    // -----------------------------------------------------------------------
+    // 1. CONSTANTS & CONFIGURATION
+    // -----------------------------------------------------------------------
+    let CURRENT_USER = '';
+    const STATUSES = ['Backlog', 'Ready', 'In Progress', 'Blocked', 'Done'];
+    const PRIORITIES = ['High', 'Normal', 'Low'];
+    let TEAM_MEMBERS = [];
+
+    // Reference date anchored cleanly for realistic overdue/upcoming calculations
+    // Uses actual system date formatted YYYY-MM-DD so relative dates stay intuitive
+    function getTodayISO() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function addDaysISO(offsetDays) {
+      const dt = new Date();
+      dt.setDate(dt.getDate() + offsetDays);
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, '0');
+      const d = String(dt.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    // Visual styling tokens for the 5-state lifecycle
+    const STATUS_META = {
+      'Backlog': {
+        badge: 'bg-slate-100 text-slate-700 border-slate-200',
+        dot: 'bg-slate-400',
+        headerBg: 'bg-slate-100/80 border-slate-200',
+        desc: 'Scoped, unscheduled',
+      },
+      'Ready': {
+        badge: 'bg-sky-50 text-sky-700 border-sky-200',
+        dot: 'bg-sky-500',
+        headerBg: 'bg-sky-50/80 border-sky-200',
+        desc: 'Cleared to begin',
+      },
+      'In Progress': {
+        badge: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        dot: 'bg-indigo-500',
+        headerBg: 'bg-indigo-50/80 border-indigo-200',
+        desc: 'Actively executing',
+      },
+      'Blocked': {
+        badge: 'bg-rose-50 text-rose-700 border-rose-200',
+        dot: 'bg-rose-500',
+        headerBg: 'bg-rose-50/90 border-rose-200',
+        desc: 'Stopped / Needs action',
+      },
+      'Done': {
+        badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        dot: 'bg-emerald-500',
+        headerBg: 'bg-emerald-50/80 border-emerald-200',
+        desc: 'Verified complete',
+      },
+    };
+
+    const PRIORITY_META = {
+      'High': 'bg-amber-50 text-amber-800 border-amber-200',
+      'Normal': 'bg-slate-100 text-slate-600 border-slate-200',
+      'Low': 'bg-zinc-50 text-zinc-500 border-zinc-200',
+    };
+
+    // -----------------------------------------------------------------------
+    // 3. APPLICATION STATE
+    // -----------------------------------------------------------------------
+    let appState = { projects: [], milestones: [], tasks: [] };
+    let savedState = null;
+    let stateVersion = 0;
+    let activeView = 'board'; // 'board' | 'list' | 'my-work' | 'radar' | 'roadmap'
+    let myWorkPersona = CURRENT_USER;
+    let listSort = { field: 'dueDate', dir: 'asc' };
+    let draggedTaskId = null;
+    function setSyncError(message) {
+      const el = document.getElementById('syncError');
+      el.textContent = message;
+      el.classList.toggle('hidden', !message);
+    }
+
+    async function readSharedState() {
+      if (window.parent === window || typeof window.parent.api !== 'function') {
+        throw new Error('Open the tracker from PlanBraid.');
+      }
+      const data = await window.parent.api('shared-tracker-load', {});
+      stateVersion = data.version;
+      TEAM_MEMBERS = data.users;
+      CURRENT_USER = data.username;
+      appState = data.state;
+      savedState = structuredClone(data.state);
+    }
+
+    async function saveState() {
+      const overlay = document.getElementById('loadingOverlay');
+      document.getElementById('loadingMessage').textContent = 'Saving shared tracker…';
+      overlay.classList.remove('hidden');
+      try {
+        const data = await window.parent.api('shared-tracker-save', { version: stateVersion, state: appState });
+        stateVersion = data.version;
+        savedState = structuredClone(appState);
+        setSyncError('');
+        return true;
+      } catch (err) {
+        if (err.status === 409 && err.code !== 'session_replaced') {
+          try {
+            await readSharedState();
+            err = new Error('Another user changed the tracker. Your change was not saved; the latest data is loaded. Review and retry.');
+          } catch (reloadError) {
+            console.error('PlanBraid PM reload error:', reloadError);
+            err = new Error('The tracker changed, but the latest data could not be loaded. Reload before retrying.');
+          }
+        } else if (err.code === 'session_replaced') {
+          window.parent.disconnectReplacedInstance();
+        }
+        if (savedState !== null) appState = structuredClone(savedState);
+        console.error('PlanBraid PM save error:', err);
+        setSyncError(`${err.message || 'Unable to save the tracker.'} Your change was not confirmed. Reload if the connection was interrupted.`);
+        return false;
+      } finally {
+        overlay.classList.add('hidden');
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // 4. LOOKUP & FILTER HELPERS
+    // -----------------------------------------------------------------------
+    function getMilestoneById(id) {
+      return appState.milestones.find((m) => m.id === id) || null;
+    }
+
+    function getProjectById(id) {
+      return appState.projects.find((p) => p.id === id) || null;
+    }
+
+    function getProjectForMilestone(milestoneId) {
+      const ms = getMilestoneById(milestoneId);
+      return ms ? getProjectById(ms.projectId) : null;
+    }
+
+    function isTaskOverdue(task) {
+      if (task.status === 'Done' || !task.dueDate) return false;
+      return task.dueDate < getTodayISO();
+    }
+
+    function formatRelativeDue(dueDateStr, status) {
+      if (!dueDateStr) return 'No date';
+      if (status === 'Done') return dueDateStr;
+      const today = new Date(getTodayISO() + 'T00:00:00');
+      const due = new Date(dueDateStr + 'T00:00:00');
+      const diffDays = Math.round((due - today) / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) return `${Math.abs(diffDays)}d overdue (${dueDateStr})`;
+      if (diffDays === 0) return `Due Today (${dueDateStr})`;
+      if (diffDays === 1) return `Tomorrow (${dueDateStr})`;
+      return `In ${diffDays}d (${dueDateStr})`;
+    }
+
+    function getFilteredTasks() {
+      const searchVal = document.getElementById('filterSearch').value.trim().toLowerCase();
+      const projectVal = document.getElementById('filterProject').value;
+      const milestoneVal = document.getElementById('filterMilestone').value;
+      const ownerVal = document.getElementById('filterOwner').value;
+      const priorityVal = document.getElementById('filterPriority').value;
+
+      return appState.tasks.filter((task) => {
+        const ms = getMilestoneById(task.milestoneId);
+        const projId = ms ? ms.projectId : '';
+
+        if (projectVal !== 'ALL' && projId !== projectVal) return false;
+        if (milestoneVal !== 'ALL' && task.milestoneId !== milestoneVal) return false;
+        if (ownerVal !== 'ALL' && task.owner !== ownerVal) return false;
+        if (priorityVal !== 'ALL' && task.priority !== priorityVal) return false;
+
+        if (searchVal) {
+          const haystack = `${task.title} ${task.notes || ''} ${task.blockedBy || ''} ${task.owner}`.toLowerCase();
+          if (!haystack.includes(searchVal)) return false;
+        }
+        return true;
+      });
+    }
+
+    function updateFilterClearButtonVisibility() {
+      const hasActiveFilter =
+        document.getElementById('filterSearch').value.trim() !== '' ||
+        document.getElementById('filterProject').value !== 'ALL' ||
+        document.getElementById('filterMilestone').value !== 'ALL' ||
+        document.getElementById('filterOwner').value !== 'ALL' ||
+        document.getElementById('filterPriority').value !== 'ALL';
+
+      const btn = document.getElementById('clearFiltersBtn');
+      if (hasActiveFilter) {
+        btn.classList.remove('hidden');
+      } else {
+        btn.classList.add('hidden');
+      }
+    }
+
+    function populateGlobalFilterDropdowns() {
+      const projSelect = document.getElementById('filterProject');
+      const msSelect = document.getElementById('filterMilestone');
+      const ownerSelect = document.getElementById('filterOwner');
+
+      const prevProj = projSelect.value;
+      const prevMs = msSelect.value;
+      const prevOwner = ownerSelect.value;
+
+      // Projects
+      projSelect.innerHTML = '<option value="ALL">All Projects</option>';
+      appState.projects.forEach((p) => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        projSelect.appendChild(opt);
+      });
+      if ([...projSelect.options].some((o) => o.value === prevProj)) {
+        projSelect.value = prevProj;
+      }
+
+      // Milestones (filtered by selected project if any)
+      msSelect.innerHTML = '<option value="ALL">All Milestones / Phases</option>';
+      const visibleMilestones =
+        projSelect.value === 'ALL'
+          ? appState.milestones
+          : appState.milestones.filter((m) => m.projectId === projSelect.value);
+
+      visibleMilestones.forEach((m) => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        const p = getProjectById(m.projectId);
+        opt.textContent = projSelect.value === 'ALL' && p ? `${p.name} › ${m.name}` : m.name;
+        msSelect.appendChild(opt);
+      });
+      if ([...msSelect.options].some((o) => o.value === prevMs)) {
+        msSelect.value = prevMs;
+      }
+
+      // Owners
+      const owners = new Set([...TEAM_MEMBERS, ...appState.tasks.map((t) => t.owner)]);
+      ownerSelect.innerHTML = '<option value="ALL">All Owners</option>';
+      owners.forEach((owner) => {
+        const opt = document.createElement('option');
+        opt.value = owner;
+        opt.textContent = owner;
+        ownerSelect.appendChild(opt);
+      });
+      if ([...ownerSelect.options].some((o) => o.value === prevOwner)) {
+        ownerSelect.value = prevOwner;
+      }
+    }
+
+    function handleProjectFilterChange() {
+      document.getElementById('filterMilestone').value = 'ALL';
+      populateGlobalFilterDropdowns();
+      handleFilterChange();
+    }
+
+    function handleFilterChange() {
+      updateFilterClearButtonVisibility();
+      renderApp();
+    }
+
+    function clearAllFilters() {
+      document.getElementById('filterSearch').value = '';
+      document.getElementById('filterProject').value = 'ALL';
+      document.getElementById('filterMilestone').value = 'ALL';
+      document.getElementById('filterOwner').value = 'ALL';
+      document.getElementById('filterPriority').value = 'ALL';
+      populateGlobalFilterDropdowns();
+      updateFilterClearButtonVisibility();
+      renderApp();
+    }
+
+    // -----------------------------------------------------------------------
+    // 5. KPI & TAB RENDERING
+    // -----------------------------------------------------------------------
+    function renderKPIs(filteredTasks) {
+      const total = filteredTasks.length;
+      const active = filteredTasks.filter((t) => t.status === 'Ready' || t.status === 'In Progress').length;
+      const blocked = filteredTasks.filter((t) => t.status === 'Blocked').length;
+      const overdue = filteredTasks.filter((t) => isTaskOverdue(t)).length;
+      const done = filteredTasks.filter((t) => t.status === 'Done').length;
+      const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+
+      document.getElementById('kpiTotal').textContent = total;
+      document.getElementById('kpiActive').textContent = active;
+      document.getElementById('kpiBlocked').textContent = blocked;
+      document.getElementById('kpiOverdue').textContent = overdue;
+      document.getElementById('kpiPercent').textContent = `${pct}%`;
+      document.getElementById('kpiProgressBar').style.width = `${pct}%`;
+      document.getElementById('kpiDoneSub').textContent = `${done} of ${total} tasks Done`;
+
+      // Highlight Blocked KPI card if > 0
+      const blockedCard = document.getElementById('kpiBlockedCard');
+      if (blocked > 0) {
+        blockedCard.classList.add('bg-rose-50/50', 'border-rose-200');
+        blockedCard.classList.remove('bg-white', 'border-slate-200');
+      } else {
+        blockedCard.classList.remove('bg-rose-50/50', 'border-rose-200');
+        blockedCard.classList.add('bg-white', 'border-slate-200');
+      }
+
+      // Global blocked badge count on Blocker Radar tab
+      const allBlockedCount = appState.tasks.filter((t) => t.status === 'Blocked').length;
+      document.getElementById('tabBlockedBadge').textContent = allBlockedCount;
+    }
+
+    function updateTabStyling() {
+      document.querySelectorAll('.view-tab').forEach((btn) => {
+        const isActive = btn.getAttribute('data-view') === activeView;
+        if (isActive) {
+          btn.classList.add('border-indigo-600', 'text-indigo-700', 'bg-white');
+          btn.classList.remove('border-transparent', 'text-slate-600', 'hover:text-slate-900', 'hover:bg-slate-100/60');
+        } else {
+          btn.classList.remove('border-indigo-600', 'text-indigo-700', 'bg-white');
+          btn.classList.add('border-transparent', 'text-slate-600', 'hover:text-slate-900', 'hover:bg-slate-100/60');
+        }
+      });
+    }
+
+    function switchView(viewName) {
+      activeView = viewName;
+      updateTabStyling();
+      renderApp();
+    }
+
+    // -----------------------------------------------------------------------
+    // 6. VIEW 1: EXECUTION BOARD (KANBAN WITH DRAG & DROP + QUICK SWITCH)
+    // -----------------------------------------------------------------------
+    function renderBoardView(tasks) {
+      const container = document.getElementById('viewContainer');
+      const colsHtml = STATUSES.map((status) => {
+        const colTasks = tasks.filter((t) => t.status === status);
+        const meta = STATUS_META[status];
+
+        const cardsHtml =
+          colTasks.length === 0
+            ? `<div class="border border-dashed border-slate-200 rounded-xl p-4 text-center text-xs text-slate-400">
+                 Drop task here or click + New Task
+               </div>`
+            : colTasks.map((t) => renderKanbanCard(t)).join('');
+
+        return `
+          <div
+            class="kanban-dropzone flex flex-col bg-slate-100/70 rounded-xl border border-slate-200 min-w-[270px] flex-1 max-h-[calc(100vh-280px)] min-h-[430px]"
+            data-status="${status}"
+            ondragover="handleDragOver(event)"
+            ondragleave="handleDragLeave(event)"
+            ondrop="handleDrop(event, '${status}')"
+          >
+            <!-- Column Header -->
+            <div class="p-3 rounded-t-xl border-b ${meta.headerBg} flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full ${meta.dot}"></span>
+                <div>
+                  <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800">${status}</h3>
+                  <p class="text-[11px] text-slate-500">${meta.desc}</p>
+                </div>
+              </div>
+              <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-white text-slate-700 border border-slate-200 shadow-2xs">
+                ${colTasks.length}
+              </span>
+            </div>
+
+            <!-- Cards Stack -->
+            <div class="p-2.5 space-y-2.5 overflow-y-auto flex-1">
+              ${cardsHtml}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = `
+        <div class="flex gap-3.5 overflow-x-auto pb-3">
+          ${colsHtml}
+        </div>
+      `;
+    }
+
+    function renderKanbanCard(task) {
+      const ms = getMilestoneById(task.milestoneId);
+      const proj = ms ? getProjectById(ms.projectId) : null;
+      const overdue = isTaskOverdue(task);
+      const isBlocked = task.status === 'Blocked';
+
+      const statusOptions = STATUSES.map(
+        (s) => `<option value="${s}" ${s === task.status ? 'selected' : ''}>Move &rarr; ${s}</option>`
+      ).join('');
+
+      return `
+        <article
+          draggable="true"
+          ondragstart="handleDragStart(event, '${task.id}')"
+          ondragend="handleDragEnd(event)"
+          class="bg-white rounded-xl border ${isBlocked ? 'border-rose-300 ring-1 ring-rose-100' : 'border-slate-200'} p-3 shadow-2xs hover:shadow-md transition cursor-grab active:cursor-grabbing group"
+        >
+          <!-- Top Meta: Priority & Milestone Tag -->
+          <div class="flex items-center justify-between gap-2 mb-1.5">
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${PRIORITY_META[task.priority]}">
+              ${task.priority}
+            </span>
+            <button
+              type="button"
+              onclick="openTaskDrawer('${task.id}')"
+              class="text-xs font-medium text-slate-400 hover:text-indigo-600 px-1.5 py-0.5 rounded hover:bg-indigo-50 transition"
+              title="Edit all 8 task fields"
+            >
+              Edit
+            </button>
+          </div>
+
+          <!-- Title -->
+          <h4
+            onclick="openTaskDrawer('${task.id}')"
+            class="text-sm font-semibold text-slate-900 leading-snug cursor-pointer hover:text-indigo-600 transition"
+          >
+            ${escapeHtml(task.title)}
+          </h4>
+
+          <!-- Project & Milestone Breadcrumb -->
+          <p class="text-[11px] text-slate-500 mt-1 truncate" title="${proj ? escapeHtml(proj.name) : ''} › ${ms ? escapeHtml(ms.name) : ''}">
+            ${proj ? escapeHtml(proj.name) : 'Unassigned'} &bull; <span class="text-slate-700 font-medium">${ms ? escapeHtml(ms.name) : ''}</span>
+          </p>
+
+          <!-- Blocker Alert Box (if Blocked) -->
+          ${
+            isBlocked
+              ? `<div class="mt-2 p-2 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800">
+                   <span class="font-bold uppercase text-[10px] tracking-wider block text-rose-700">Blocked By:</span>
+                   <span>${escapeHtml(task.blockedBy || 'Missing blocker reason — click Edit')}</span>
+                 </div>`
+              : ''
+          }
+
+          <!-- Bottom Row: Owner & Due Date -->
+          <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <span class="w-5 h-5 rounded-full bg-slate-800 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                ${getInitials(task.owner)}
+              </span>
+              <span class="text-slate-700 font-medium truncate">${escapeHtml(task.owner.split(' ')[0])}</span>
+            </div>
+
+            <span class="font-mono text-[11px] shrink-0 ${overdue ? 'text-rose-600 font-bold bg-rose-50 px-1.5 py-0.5 rounded' : 'text-slate-500'}">
+              ${overdue ? '!' : ''} ${task.dueDate}
+            </span>
+          </div>
+
+          <!-- Touch / Keyboard Friendly Quick Status Switcher -->
+          <div class="mt-2">
+            <select
+              aria-label="Change status for ${escapeHtml(task.title)}"
+              onchange="quickChangeStatus('${task.id}', this.value)"
+              class="w-full text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+            >
+              ${statusOptions}
+            </select>
+          </div>
+        </article>
+      `;
+    }
+
+    // Drag & Drop Handlers
+    function handleDragStart(event, taskId) {
+      draggedTaskId = taskId;
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', taskId);
+      setTimeout(() => {
+        if (event.target) event.target.classList.add('card-dragging');
+      }, 0);
+    }
+
+    function handleDragEnd(event) {
+      draggedTaskId = null;
+      if (event.target) event.target.classList.remove('card-dragging');
+      document.querySelectorAll('.kanban-dropzone').forEach((zone) => zone.classList.remove('drag-over'));
+    }
+
+    function handleDragOver(event) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      const zone = event.currentTarget;
+      if (!zone.classList.contains('drag-over')) {
+        zone.classList.add('drag-over');
+      }
+    }
+
+    function handleDragLeave(event) {
+      const zone = event.currentTarget;
+      if (!zone.contains(event.relatedTarget)) {
+        zone.classList.remove('drag-over');
+      }
+    }
+
+    function handleDrop(event, newStatus) {
+      event.preventDefault();
+      const zone = event.currentTarget;
+      zone.classList.remove('drag-over');
+      const taskId = event.dataTransfer.getData('text/plain') || draggedTaskId;
+      if (taskId) {
+        quickChangeStatus(taskId, newStatus);
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // 7. VIEW 2: ALL TASKS / SORTABLE LIST VIEW
+    // -----------------------------------------------------------------------
+    function toggleListSort(field) {
+      if (listSort.field === field) {
+        listSort.dir = listSort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        listSort.field = field;
+        listSort.dir = 'asc';
+      }
+      renderApp();
+    }
+
+    function sortTasksArray(tasks) {
+      const priorityWeight = { High: 1, Normal: 2, Low: 3 };
+      const statusWeight = { Blocked: 1, 'In Progress': 2, Ready: 3, Backlog: 4, Done: 5 };
+
+      return [...tasks].sort((a, b) => {
+        let cmp = 0;
+        if (listSort.field === 'priority') {
+          cmp = priorityWeight[a.priority] - priorityWeight[b.priority];
+        } else if (listSort.field === 'status') {
+          cmp = statusWeight[a.status] - statusWeight[b.status];
+        } else if (listSort.field === 'dueDate') {
+          cmp = (a.dueDate || '9999-12-31').localeCompare(b.dueDate || '9999-12-31');
+        } else if (listSort.field === 'owner') {
+          cmp = a.owner.localeCompare(b.owner);
+        } else {
+          cmp = a.title.localeCompare(b.title);
+        }
+        return listSort.dir === 'asc' ? cmp : -cmp;
+      });
+    }
+
+    function renderListView(tasks) {
+      const container = document.getElementById('viewContainer');
+      const sorted = sortTasksArray(tasks);
+
+      const sortIndicator = (field) => {
+        if (listSort.field !== field) return '<span class="text-slate-300 ml-1">&updownarrow;</span>';
+        return listSort.dir === 'asc'
+          ? '<span class="text-indigo-600 ml-1">&uarr;</span>'
+          : '<span class="text-indigo-600 ml-1">&darr;</span>';
+      };
+
+      if (sorted.length === 0) {
+        container.innerHTML = renderEmptyState('No tasks match the current filters.');
+        return;
+      }
+
+      const rowsHtml = sorted
+        .map((task) => {
+          const ms = getMilestoneById(task.milestoneId);
+          const proj = ms ? getProjectById(ms.projectId) : null;
+          const overdue = isTaskOverdue(task);
+          const meta = STATUS_META[task.status];
+
+          const statusOptions = STATUSES.map(
+            (s) => `<option value="${s}" ${s === task.status ? 'selected' : ''}>${s}</option>`
+          ).join('');
+
+          return `
+            <tr class="hover:bg-slate-50/90 transition border-b border-slate-100 last:border-b-0 ${task.status === 'Blocked' ? 'bg-rose-50/30' : ''}">
+              <!-- Task Title & Blocker Info -->
+              <td class="py-3 px-4 max-w-md">
+                <div class="flex items-start gap-2">
+                  <span class="w-2 h-2 rounded-full mt-1.5 shrink-0 ${meta.dot}"></span>
+                  <div>
+                    <button
+                      type="button"
+                      onclick="openTaskDrawer('${task.id}')"
+                      class="text-left text-sm font-semibold text-slate-900 hover:text-indigo-600 transition"
+                    >
+                      ${escapeHtml(task.title)}
+                    </button>
+                    ${
+                      task.status === 'Blocked'
+                        ? `<div class="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-100/80 text-rose-800 text-xs">
+                             <span class="font-bold">Blocked By:</span> ${escapeHtml(task.blockedBy || 'Unspecified')}
+                           </div>`
+                        : task.notes
+                        ? `<p class="text-xs text-slate-500 line-clamp-1 mt-0.5">${escapeHtml(task.notes)}</p>`
+                        : ''
+                    }
+                  </div>
+                </div>
+              </td>
+
+              <!-- Inline Status Dropdown -->
+              <td class="py-3 px-3 whitespace-nowrap">
+                <select
+                  aria-label="Status for ${escapeHtml(task.title)}"
+                  onchange="quickChangeStatus('${task.id}', this.value)"
+                  class="text-xs font-semibold rounded-lg px-2.5 py-1.5 border cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 ${meta.badge}"
+                >
+                  ${statusOptions}
+                </select>
+              </td>
+
+              <!-- Priority -->
+              <td class="py-3 px-3 whitespace-nowrap">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border ${PRIORITY_META[task.priority]}">
+                  ${task.priority}
+                </span>
+              </td>
+
+              <!-- Owner -->
+              <td class="py-3 px-3 whitespace-nowrap">
+                <div class="inline-flex items-center gap-2">
+                  <span class="w-6 h-6 rounded-full bg-slate-800 text-white text-[10px] font-bold flex items-center justify-center">
+                    ${getInitials(task.owner)}
+                  </span>
+                  <span class="text-xs font-medium text-slate-700">${escapeHtml(task.owner)}</span>
+                </div>
+              </td>
+
+              <!-- Due Date -->
+              <td class="py-3 px-3 whitespace-nowrap">
+                <span class="font-mono text-xs ${overdue ? 'text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200' : 'text-slate-600'}">
+                  ${task.dueDate}
+                </span>
+              </td>
+
+              <!-- Milestone / Project -->
+              <td class="py-3 px-3">
+                <div class="text-xs font-medium text-slate-800">${ms ? escapeHtml(ms.name) : '—'}</div>
+                <div class="text-[11px] text-slate-400">${proj ? escapeHtml(proj.name) : ''}</div>
+              </td>
+
+              <!-- Actions -->
+              <td class="py-3 px-4 text-right whitespace-nowrap">
+                <button
+                  type="button"
+                  onclick="openTaskDrawer('${task.id}')"
+                  class="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 border border-slate-200 transition"
+                >
+                  Edit
+                </button>
+              </td>
+            </tr>
+          `;
+        })
+        .join('');
+
+      container.innerHTML = `
+        <div class="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <th class="py-3 px-4 cursor-pointer hover:text-slate-800" onclick="toggleListSort('title')">
+                    Task & Context ${sortIndicator('title')}
+                  </th>
+                  <th class="py-3 px-3 cursor-pointer hover:text-slate-800" onclick="toggleListSort('status')">
+                    Status ${sortIndicator('status')}
+                  </th>
+                  <th class="py-3 px-3 cursor-pointer hover:text-slate-800" onclick="toggleListSort('priority')">
+                    Priority ${sortIndicator('priority')}
+                  </th>
+                  <th class="py-3 px-3 cursor-pointer hover:text-slate-800" onclick="toggleListSort('owner')">
+                    Owner ${sortIndicator('owner')}
+                  </th>
+                  <th class="py-3 px-3 cursor-pointer hover:text-slate-800" onclick="toggleListSort('dueDate')">
+                    Due Date ${sortIndicator('dueDate')}
+                  </th>
+                  <th class="py-3 px-3">Milestone / Project</th>
+                  <th class="py-3 px-4 text-right">Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    // -----------------------------------------------------------------------
+    // 8. VIEW 3: MY ACTIVE WORK (OWNER = ME & STATUS != DONE)
+    // -----------------------------------------------------------------------
+    function changeMyWorkPersona(newOwner) {
+      myWorkPersona = newOwner;
+      renderApp();
+    }
+
+    function renderMyActiveWorkView(filteredTasks) {
+      const container = document.getElementById('viewContainer');
+      const allOwners = [...new Set([...TEAM_MEMBERS, ...appState.tasks.map((t) => t.owner)])];
+      if (!allOwners.includes(myWorkPersona) && allOwners.length > 0) {
+        myWorkPersona = allOwners[0];
+      }
+
+      const priorityOrder = { High: 1, Normal: 2, Low: 3 };
+      const myTasks = filteredTasks
+        .filter((t) => t.owner === myWorkPersona && t.status !== 'Done')
+        .sort((a, b) => {
+          const pDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+          if (pDiff !== 0) return pDiff;
+          return (a.dueDate || '9999-12-31').localeCompare(b.dueDate || '9999-12-31');
+        });
+
+      const personaOptions = allOwners
+        .map((o) => `<option value="${escapeHtml(o)}" ${o === myWorkPersona ? 'selected' : ''}>${escapeHtml(o)}</option>`)
+        .join('');
+
+      const listHtml =
+        myTasks.length === 0
+          ? renderEmptyState(`No open tasks assigned to ${myWorkPersona} under the current filters.`)
+          : `<div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              ${myTasks
+                .map((task) => {
+                  const ms = getMilestoneById(task.milestoneId);
+                  const proj = ms ? getProjectById(ms.projectId) : null;
+                  const overdue = isTaskOverdue(task);
+                  const meta = STATUS_META[task.status];
+
+                  return `
+                    <div class="bg-white rounded-xl border ${task.status === 'Blocked' ? 'border-rose-300' : 'border-slate-200'} p-4 shadow-2xs flex flex-col justify-between gap-3">
+                      <div>
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                          <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded text-xs font-semibold border ${meta.badge}">${task.status}</span>
+                            <span class="px-2 py-0.5 rounded text-xs font-semibold border ${PRIORITY_META[task.priority]}">${task.priority}</span>
+                          </div>
+                          <span class="font-mono text-xs ${overdue ? 'text-rose-600 font-bold' : 'text-slate-500'}">
+                            ${formatRelativeDue(task.dueDate, task.status)}
+                          </span>
+                        </div>
+
+                        <h4 onclick="openTaskDrawer('${task.id}')" class="text-base font-bold text-slate-900 hover:text-indigo-600 cursor-pointer">
+                          ${escapeHtml(task.title)}
+                        </h4>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                          ${proj ? escapeHtml(proj.name) : ''} &rsaquo; <span class="font-medium text-slate-700">${ms ? escapeHtml(ms.name) : ''}</span>
+                        </p>
+
+                        ${
+                          task.status === 'Blocked'
+                            ? `<div class="mt-2.5 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800">
+                                 <strong>Blocked By:</strong> ${escapeHtml(task.blockedBy)}
+                               </div>`
+                            : ''
+                        }
+
+                        ${
+                          task.notes
+                            ? `<p class="mt-2.5 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">${escapeHtml(task.notes)}</p>`
+                            : ''
+                        }
+                      </div>
+
+                      <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-1.5">
+                          ${
+                            task.status === 'Ready' || task.status === 'Backlog'
+                              ? `<button type="button" onclick="quickChangeStatus('${task.id}', 'In Progress')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition">
+                                   Start Work &rarr;
+                                 </button>`
+                              : ''
+                          }
+                          ${
+                            task.status === 'In Progress'
+                              ? `<button type="button" onclick="quickChangeStatus('${task.id}', 'Done')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition">
+                                   Mark Done &check;
+                                 </button>`
+                              : ''
+                          }
+                          ${
+                            task.status === 'Blocked'
+                              ? `<button type="button" onclick="quickChangeStatus('${task.id}', 'Ready')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-600 text-white hover:bg-sky-700 transition">
+                                   Unblock &rarr; Ready
+                                 </button>`
+                              : ''
+                          }
+                        </div>
+                        <button type="button" onclick="openTaskDrawer('${task.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 border border-slate-200">
+                          Edit Details
+                        </button>
+                      </div>
+                    </div>
+                  `;
+                })
+                .join('')}
+            </div>`;
+
+      container.innerHTML = `
+        <div class="space-y-4">
+          <!-- Persona Selector Banner -->
+          <div class="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+            <div class="flex items-center gap-3">
+              <label for="myWorkSelect" class="text-xs font-bold uppercase tracking-wider text-slate-500">Viewing Queue As ("Me"):</label>
+              <select
+                id="myWorkSelect"
+                onchange="changeMyWorkPersona(this.value)"
+                class="px-3 py-1.5 text-sm font-semibold bg-indigo-50 text-indigo-900 border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                ${personaOptions}
+              </select>
+            </div>
+            <div class="text-xs text-slate-500">
+              Rule: <code class="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">Owner = "${escapeHtml(myWorkPersona)}" AND Status != Done</code>, sorted by Priority &rarr; Due Date
+            </div>
+          </div>
+
+          ${listHtml}
+        </div>
+      `;
+    }
+
+    // -----------------------------------------------------------------------
+    // 9. VIEW 4: BLOCKER RADAR (EXCEPTION LIST FOR STATUS = BLOCKED)
+    // -----------------------------------------------------------------------
+    function renderBlockerRadarView(filteredTasks) {
+      const container = document.getElementById('viewContainer');
+      const blockedTasks = filteredTasks.filter((t) => t.status === 'Blocked');
+
+      if (blockedTasks.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-xl border border-emerald-200 p-10 text-center space-y-2 shadow-2xs">
+            <div class="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 class="text-base font-bold text-slate-900">Zero Active Blockers</h3>
+            <p class="text-sm text-slate-500 max-w-md mx-auto">
+              All visible tasks are clear of external walls or dependencies. Keep daily standups focused on moving Ready items into Done.
+            </p>
+          </div>
+        `;
+        return;
+      }
+
+      const cardsHtml = blockedTasks
+        .map((task) => {
+          const ms = getMilestoneById(task.milestoneId);
+          const proj = ms ? getProjectById(ms.projectId) : null;
+          const overdue = isTaskOverdue(task);
+
+          return `
+            <div class="bg-white rounded-xl border-2 border-rose-200 p-4 sm:p-5 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div class="space-y-2 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800">
+                    <span class="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse"></span>
+                    BLOCKED
+                  </span>
+                  <span class="px-2 py-0.5 rounded text-xs font-semibold border ${PRIORITY_META[task.priority]}">${task.priority} Priority</span>
+                  <span class="font-mono text-xs ${overdue ? 'text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded' : 'text-slate-600'}">
+                    ${formatRelativeDue(task.dueDate, task.status)}
+                  </span>
+                </div>
+
+                <div>
+                  <h4 onclick="openTaskDrawer('${task.id}')" class="text-base font-bold text-slate-900 hover:text-indigo-600 cursor-pointer">
+                    ${escapeHtml(task.title)}
+                  </h4>
+                  <p class="text-xs text-slate-500">
+                    Owner: <strong class="text-slate-700">${escapeHtml(task.owner)}</strong> &bull;
+                    ${proj ? escapeHtml(proj.name) : ''} &rsaquo; ${ms ? escapeHtml(ms.name) : ''}
+                  </p>
+                </div>
+
+                <div class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-900">
+                  <span class="text-xs font-bold uppercase tracking-wider text-rose-700 block mb-0.5">Impediment / Blocked By:</span>
+                  ${escapeHtml(task.blockedBy || 'No blocker reason recorded — click Edit to specify.')}
+                </div>
+              </div>
+
+              <div class="flex sm:flex-row lg:flex-col items-stretch sm:items-center lg:items-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onclick="quickChangeStatus('${task.id}', 'Ready')"
+                  class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                  </svg>
+                  Unblock &rarr; Ready
+                </button>
+                <button
+                  type="button"
+                  onclick="openTaskDrawer('${task.id}')"
+                  class="px-3.5 py-2 rounded-xl text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition text-center"
+                >
+                  Update Blocker Note
+                </button>
+              </div>
+            </div>
+          `;
+        })
+        .join('');
+
+      container.innerHTML = `
+        <div class="space-y-3.5">
+          <div class="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 flex items-center justify-between">
+            <p class="text-xs sm:text-sm text-rose-900">
+              <strong>Blocker Radar:</strong> Who has the ball? <strong>Project Lead / Unblocker</strong>. Clear these impediments first to restore flow.
+            </p>
+            <span class="text-xs font-bold text-rose-700 shrink-0 ml-2">${blockedTasks.length} Blocked</span>
+          </div>
+          ${cardsHtml}
+        </div>
+      `;
+    }
+
+    // -----------------------------------------------------------------------
+    // 10. VIEW 5: MILESTONE ROADMAP (3-LEVEL HIERARCHY ROLL-UP)
+    // -----------------------------------------------------------------------
+    function renderRoadmapView(filteredTasks) {
+      const container = document.getElementById('viewContainer');
+      const selectedProject = document.getElementById('filterProject').value;
+      const projectsToShow =
+        selectedProject === 'ALL'
+          ? appState.projects
+          : appState.projects.filter((p) => p.id === selectedProject);
+
+      if (projectsToShow.length === 0) {
+        container.innerHTML = renderEmptyState('No projects available.');
+        return;
+      }
+
+      const projectsHtml = projectsToShow
+        .map((proj) => {
+          const projMilestones = appState.milestones.filter((m) => m.projectId === proj.id);
+          const allProjTasks = filteredTasks.filter((t) => {
+            const ms = getMilestoneById(t.milestoneId);
+            return ms && ms.projectId === proj.id;
+          });
+          const projDone = allProjTasks.filter((t) => t.status === 'Done').length;
+          const projPct = allProjTasks.length === 0 ? 0 : Math.round((projDone / allProjTasks.length) * 100);
+
+          const milestonesHtml =
+            projMilestones.length === 0
+              ? `<p class="text-xs text-slate-400 italic p-4">No milestones defined for this project yet.</p>`
+              : projMilestones
+                  .map((ms) => {
+                    const msTasks = filteredTasks.filter((t) => t.milestoneId === ms.id);
+                    const msDone = msTasks.filter((t) => t.status === 'Done').length;
+                    const msPct = msTasks.length === 0 ? 0 : Math.round((msDone / msTasks.length) * 100);
+                    const isMilestoneComplete = msTasks.length > 0 && msDone === msTasks.length;
+
+                    const taskRows =
+                      msTasks.length === 0
+                        ? `<div class="text-xs text-slate-400 py-2">No tasks in this milestone match current filters.</div>`
+                        : msTasks
+                            .map((t) => {
+                              const meta = STATUS_META[t.status];
+                              const overdue = isTaskOverdue(t);
+                              return `
+                                <div
+                                  onclick="openTaskDrawer('${t.id}')"
+                                  class="flex flex-wrap items-center justify-between gap-2 py-2 px-3 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 cursor-pointer transition"
+                                >
+                                  <div class="flex items-center gap-2.5 min-w-0">
+                                    <span class="px-2 py-0.5 rounded text-[11px] font-semibold border shrink-0 ${meta.badge}">
+                                      ${t.status}
+                                    </span>
+                                    <span class="text-sm font-medium text-slate-800 truncate ${t.status === 'Done' ? 'line-through text-slate-400' : ''}">
+                                      ${escapeHtml(t.title)}
+                                    </span>
+                                  </div>
+                                  <div class="flex items-center gap-3 text-xs shrink-0">
+                                    <span class="text-slate-500">${escapeHtml(t.owner)}</span>
+                                    <span class="font-mono ${overdue ? 'text-rose-600 font-bold' : 'text-slate-500'}">${t.dueDate}</span>
+                                  </div>
+                                </div>
+                              `;
+                            })
+                            .join('');
+
+                    return `
+                      <div class="border border-slate-200 rounded-xl p-4 bg-white space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                          <div class="flex items-center gap-2">
+                            <span class="w-5 h-5 rounded-md flex items-center justify-center text-xs font-bold ${
+                              isMilestoneComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'
+                            }">
+                              ${isMilestoneComplete ? '&check;' : 'M'}
+                            </span>
+                            <h4 class="text-sm font-bold text-slate-900">${escapeHtml(ms.name)}</h4>
+                          </div>
+                          <div class="flex items-center gap-3 text-xs">
+                            <span class="text-slate-500">Target: <strong class="font-mono text-slate-700">${ms.targetDate || 'TBD'}</strong></span>
+                            <span class="font-bold text-slate-700">${msDone}/${msTasks.length} (${msPct}%)</span>
+                          </div>
+                        </div>
+
+                        <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <div class="${isMilestoneComplete ? 'bg-emerald-500' : 'bg-indigo-600'} h-1.5 rounded-full transition-all" style="width: ${msPct}%"></div>
+                        </div>
+
+                        <div class="divide-y divide-slate-100 pt-1">
+                          ${taskRows}
+                        </div>
+                      </div>
+                    `;
+                  })
+                  .join('');
+
+          return `
+            <div class="bg-slate-100/70 rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-4">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-600">Project Container</span>
+                  <h3 class="text-lg font-bold text-slate-900">${escapeHtml(proj.name)}</h3>
+                  <p class="text-xs text-slate-500">Project Owner: <strong class="text-slate-700">${escapeHtml(proj.owner)}</strong> &bull; Target Completion: <span class="font-mono">${proj.targetDate || 'TBD'}</span></p>
+                </div>
+                <div class="bg-white px-3.5 py-2 rounded-xl border border-slate-200 text-right">
+                  <div class="text-xs text-slate-500">Roll-Up Progress</div>
+                  <div class="text-base font-bold text-slate-900">${projPct}% <span class="text-xs font-normal text-slate-500">(${projDone}/${allProjTasks.length})</span></div>
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                ${milestonesHtml}
+              </div>
+            </div>
+          `;
+        })
+        .join('');
+
+      container.innerHTML = `<div class="space-y-5">${projectsHtml}</div>`;
+    }
+
+    function renderEmptyState(message) {
+      return `
+        <div class="bg-white rounded-xl border border-slate-200 p-10 text-center space-y-3 shadow-2xs">
+          <p class="text-sm text-slate-600 font-medium">${escapeHtml(message)}</p>
+          <button type="button" onclick="clearAllFilters()" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition">
+            Reset Active Filters
+          </button>
+        </div>
+      `;
+    }
+
+    // -----------------------------------------------------------------------
+    // 11. STATUS TRANSITIONS & GUARDRAIL ENFORCEMENT
+    // -----------------------------------------------------------------------
+    async function quickChangeStatus(taskId, newStatus) {
+      const task = appState.tasks.find((t) => t.id === taskId);
+      if (!task || task.status === newStatus) return;
+
+      // Guardrail: Moving to Blocked requires a non-empty "Blocked By" reason
+      if (newStatus === 'Blocked' && (!task.blockedBy || task.blockedBy.trim() === '')) {
+        openTaskDrawer(task.id, 'Blocked');
+        showToast('Guardrail: Specify what is blocking this task before saving as Blocked.', 'warning');
+        return;
+      }
+
+      const oldStatus = task.status;
+      task.status = newStatus;
+      if (!await saveState()) {
+        populateGlobalFilterDropdowns();
+        renderApp();
+        return;
+      }
+      renderApp();
+      showToast(`Moved "${task.title}" from ${oldStatus} → ${newStatus}`, 'success');
+    }
+
+    // -----------------------------------------------------------------------
+    // 12. TASK CREATE / EDIT DRAWER LOGIC
+    // -----------------------------------------------------------------------
+    function openTaskDrawer(taskId = null, forcedStatus = null) {
+      const drawer = document.getElementById('taskDrawer');
+      const backdrop = document.getElementById('taskDrawerBackdrop');
+      const deleteBtn = document.getElementById('deleteTaskBtn');
+      const titleEl = document.getElementById('drawerTitle');
+
+      // Populate Project & Owner dropdowns in form
+      const projSelect = document.getElementById('taskProjectInput');
+      projSelect.innerHTML = appState.projects
+        .map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`)
+        .join('');
+
+      const ownerSelect = document.getElementById('taskOwnerInput');
+      const owners = [...new Set([...TEAM_MEMBERS, ...appState.tasks.map((t) => t.owner)])];
+      ownerSelect.innerHTML = owners
+        .map((o) => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`)
+        .join('');
+
+      if (taskId) {
+        const task = appState.tasks.find((t) => t.id === taskId);
+        if (!task) return;
+        const ms = getMilestoneById(task.milestoneId);
+
+        titleEl.textContent = 'Edit Task';
+        document.getElementById('taskIdInput').value = task.id;
+        document.getElementById('taskTitleInput').value = task.title;
+        if (ms) {
+          projSelect.value = ms.projectId;
+        }
+        populateTaskFormMilestones(task.milestoneId);
+        document.getElementById('taskStatusInput').value = forcedStatus || task.status;
+        document.getElementById('taskPriorityInput').value = task.priority;
+        document.getElementById('taskOwnerInput').value = task.owner;
+        document.getElementById('taskDueDateInput').value = task.dueDate;
+        document.getElementById('taskBlockedByInput').value = task.blockedBy || '';
+        document.getElementById('taskNotesInput').value = task.notes || '';
+        deleteBtn.classList.remove('hidden');
+      } else {
+        titleEl.textContent = 'Create New Task';
+        document.getElementById('taskIdInput').value = '';
+        document.getElementById('taskTitleInput').value = '';
+
+        // Respect currently filtered project/milestone if set
+        const filterProj = document.getElementById('filterProject').value;
+        const filterMs = document.getElementById('filterMilestone').value;
+        if (filterProj !== 'ALL') {
+          projSelect.value = filterProj;
+        }
+        populateTaskFormMilestones(filterMs !== 'ALL' ? filterMs : null);
+
+        document.getElementById('taskStatusInput').value = forcedStatus || 'Ready';
+        document.getElementById('taskPriorityInput').value = 'Normal';
+        document.getElementById('taskOwnerInput').value = CURRENT_USER;
+        document.getElementById('taskDueDateInput').value = addDaysISO(5);
+        document.getElementById('taskBlockedByInput').value = '';
+        document.getElementById('taskNotesInput').value = '';
+        deleteBtn.classList.add('hidden');
+      }
+
+      toggleBlockedRequirementUI();
+
+      backdrop.classList.remove('hidden');
+      drawer.classList.remove('translate-x-full');
+
+      if (forcedStatus === 'Blocked') {
+        setTimeout(() => document.getElementById('taskBlockedByInput').focus(), 120);
+      } else {
+        setTimeout(() => document.getElementById('taskTitleInput').focus(), 120);
+      }
+    }
+
+    function populateTaskFormMilestones(selectedMilestoneId = null) {
+      const projId = document.getElementById('taskProjectInput').value;
+      const msSelect = document.getElementById('taskMilestoneInput');
+      const milestones = appState.milestones.filter((m) => m.projectId === projId);
+
+      msSelect.innerHTML = milestones
+        .map((m) => `<option value="${m.id}">${escapeHtml(m.name)}</option>`)
+        .join('');
+
+      if (selectedMilestoneId && milestones.some((m) => m.id === selectedMilestoneId)) {
+        msSelect.value = selectedMilestoneId;
+      }
+    }
+
+    function toggleBlockedRequirementUI() {
+      const status = document.getElementById('taskStatusInput').value;
+      const wrapper = document.getElementById('blockedByWrapper');
+      const input = document.getElementById('taskBlockedByInput');
+      const tag = document.getElementById('blockedRequiredTag');
+      const label = document.getElementById('blockedByLabel');
+
+      if (status === 'Blocked') {
+        input.required = true;
+        wrapper.classList.remove('bg-slate-50', 'border-slate-200');
+        wrapper.classList.add('bg-rose-50', 'border-rose-300', 'ring-2', 'ring-rose-200');
+        label.classList.remove('text-slate-700');
+        label.classList.add('text-rose-800');
+        tag.classList.remove('hidden');
+      } else {
+        input.required = false;
+        wrapper.classList.add('bg-slate-50', 'border-slate-200');
+        wrapper.classList.remove('bg-rose-50', 'border-rose-300', 'ring-2', 'ring-rose-200');
+        label.classList.add('text-slate-700');
+        label.classList.remove('text-rose-800');
+        tag.classList.add('hidden');
+      }
+    }
+
+    function closeTaskDrawer() {
+      document.getElementById('taskDrawer').classList.add('translate-x-full');
+      document.getElementById('taskDrawerBackdrop').classList.add('hidden');
+    }
+
+    async function saveTaskForm(event) {
+      event.preventDefault();
+      const id = document.getElementById('taskIdInput').value;
+      const title = document.getElementById('taskTitleInput').value.trim();
+      const milestoneId = document.getElementById('taskMilestoneInput').value;
+      const status = document.getElementById('taskStatusInput').value;
+      const priority = document.getElementById('taskPriorityInput').value;
+      const owner = document.getElementById('taskOwnerInput').value;
+      const dueDate = document.getElementById('taskDueDateInput').value;
+      const blockedBy = document.getElementById('taskBlockedByInput').value.trim();
+      const notes = document.getElementById('taskNotesInput').value.trim();
+
+      if (!title || !milestoneId) {
+        showToast('Please provide a task title and parent milestone.', 'warning');
+        return;
+      }
+
+      if (status === 'Blocked' && !blockedBy) {
+        toggleBlockedRequirementUI();
+        document.getElementById('taskBlockedByInput').focus();
+        showToast('Blocked By reason is required when Status is Blocked.', 'warning');
+        return;
+      }
+
+      if (id) {
+        const existing = appState.tasks.find((t) => t.id === id);
+        if (!existing) {
+          setSyncError('This task no longer exists. Close the editor and review the latest tracker.');
+          return;
+        }
+        existing.title = title;
+        existing.milestoneId = milestoneId;
+        existing.status = status;
+        existing.priority = priority;
+        existing.owner = owner;
+        existing.dueDate = dueDate;
+        existing.blockedBy = blockedBy;
+        existing.notes = notes;
+      } else {
+        const newTask = {
+          id: 'tsk-' + crypto.randomUUID(),
+          title,
+          status,
+          owner,
+          dueDate,
+          priority,
+          milestoneId,
+          blockedBy,
+          notes,
+        };
+        appState.tasks.unshift(newTask);
+      }
+
+      if (!await saveState()) {
+        populateGlobalFilterDropdowns();
+        renderApp();
+        return;
+      }
+      populateGlobalFilterDropdowns();
+      closeTaskDrawer();
+      renderApp();
+      showToast(id ? 'Task updated.' : 'New task added to tracker.', 'success');
+    }
+
+    async function deleteCurrentTask() {
+      const id = document.getElementById('taskIdInput').value;
+      if (!id) return;
+      appState.tasks = appState.tasks.filter((t) => t.id !== id);
+      if (!await saveState()) {
+        populateGlobalFilterDropdowns();
+        renderApp();
+        return;
+      }
+      closeTaskDrawer();
+      renderApp();
+      showToast('Task deleted.', 'info');
+    }
+
+    // -----------------------------------------------------------------------
+    // 13. HIERARCHY MODAL (ADD PROJECT / MILESTONE)
+    // -----------------------------------------------------------------------
+    let hierarchyTrigger = null;
+    function openHierarchyModal(type) {
+      hierarchyTrigger = document.activeElement;
+      const modal = document.getElementById('hierarchyModal');
+      const projSelect = document.getElementById('newMilestoneProjectSelect');
+      projSelect.innerHTML = appState.projects
+        .map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`)
+        .join('');
+
+      const ownerSelect = document.getElementById('newProjectOwner');
+      ownerSelect.innerHTML = TEAM_MEMBERS.map(
+        (o) => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`
+      ).join('');
+      ownerSelect.value = CURRENT_USER;
+
+      document.getElementById('newMilestoneName').value = '';
+      document.getElementById('newMilestoneDate').value = addDaysISO(14);
+      document.getElementById('newProjectName').value = '';
+      document.getElementById('newProjectFirstMilestone').value = '';
+      const noProjects = type === 'milestone' && appState.projects.length === 0;
+      document.getElementById('hierarchy-title').textContent = type === 'project' ? 'New Project' : 'New Milestone';
+      document.getElementById('new-project-form').hidden = type !== 'project';
+      document.getElementById('new-milestone-form').hidden = type !== 'milestone' || noProjects;
+      document.getElementById('no-projects-message').hidden = !noProjects;
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      if (type === 'project') document.getElementById('newProjectName').focus();
+      else if (!noProjects) projSelect.focus();
+      else modal.querySelector('[aria-label="Close dialog"]').focus();
+    }
+
+    function closeHierarchyModal() {
+      const modal = document.getElementById('hierarchyModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      if (hierarchyTrigger) hierarchyTrigger.focus();
+    }
+
+    async function createNewMilestone(event) {
+      event.preventDefault();
+      const projectId = document.getElementById('newMilestoneProjectSelect').value;
+      const name = document.getElementById('newMilestoneName').value.trim();
+      const targetDate = document.getElementById('newMilestoneDate').value;
+      if (!projectId || !name) {
+        showToast('Choose a project and enter a milestone name.', 'warning');
+        return;
+      }
+
+      appState.milestones.push({
+        id: 'ms-' + crypto.randomUUID(),
+        projectId,
+        name,
+        targetDate,
+      });
+
+      if (!await saveState()) {
+        populateGlobalFilterDropdowns();
+        renderApp();
+        return;
+      }
+      populateGlobalFilterDropdowns();
+      closeHierarchyModal();
+      renderApp();
+      showToast(`Added milestone "${name}"`, 'success');
+    }
+
+    async function createNewProject(event) {
+      event.preventDefault();
+      const name = document.getElementById('newProjectName').value.trim();
+      const owner = document.getElementById('newProjectOwner').value;
+      const firstMsName = document.getElementById('newProjectFirstMilestone').value.trim();
+      if (!name || !firstMsName) {
+        showToast('Enter a project name and its first milestone.', 'warning');
+        return;
+      }
+
+      const projId = 'proj-' + crypto.randomUUID();
+      appState.projects.push({
+        id: projId,
+        name,
+        owner,
+        targetDate: addDaysISO(30),
+      });
+
+      appState.milestones.push({
+        id: 'ms-' + crypto.randomUUID(),
+        projectId: projId,
+        name: firstMsName,
+        targetDate: addDaysISO(10),
+      });
+
+      if (!await saveState()) {
+        populateGlobalFilterDropdowns();
+        renderApp();
+        return;
+      }
+      populateGlobalFilterDropdowns();
+      closeHierarchyModal();
+      renderApp();
+      showToast(`Created project "${name}"`, 'success');
+    }
+
+    // -----------------------------------------------------------------------
+    // 14. JSON SCHEMA INSPECTOR & EXPORT
+    // -----------------------------------------------------------------------
+    function openSchemaModal() {
+      const modal = document.getElementById('schemaModal');
+      const pre = document.getElementById('jsonPreviewContent');
+      pre.textContent = JSON.stringify(appState, null, 2);
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeSchemaModal() {
+      const modal = document.getElementById('schemaModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function copyJsonToClipboard() {
+      const jsonStr = JSON.stringify(appState, null, 2);
+      const textarea = document.createElement('textarea');
+      textarea.value = jsonStr;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        if (!document.execCommand('copy')) throw new Error('Copy was rejected.');
+        showToast('Copied live JSON schema to clipboard!', 'success');
+      } catch (err) {
+        showToast('Unable to copy automatically — select text manually.', 'warning');
+      }
+      document.body.removeChild(textarea);
+    }
+
+    function downloadJsonFile() {
+      const jsonStr = JSON.stringify(appState, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `planbraid-pm-${getTodayISO()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Downloaded JSON data file.', 'success');
+    }
+
+    // -----------------------------------------------------------------------
+    // 16. TOAST NOTIFICATIONS & UTILITIES
+    // -----------------------------------------------------------------------
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+
+      const colors = {
+        success: 'bg-slate-900 text-white border-slate-700',
+        warning: 'bg-amber-600 text-white border-amber-700',
+        info: 'bg-indigo-600 text-white border-indigo-700',
+      };
+
+      toast.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg border text-xs sm:text-sm font-medium flex items-center justify-between gap-3 transition-all duration-200 ${colors[type] || colors.info}`;
+      toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(6px)';
+        setTimeout(() => toast.remove(), 220);
+      }, 3200);
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function getInitials(name) {
+      if (!name) return '?';
+      return escapeHtml(name
+        .split(' ')
+        .map((part) => part[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2));
+    }
+
+    // -----------------------------------------------------------------------
+    // 17. MASTER RENDER LOOP & INITIALIZATION
+    // -----------------------------------------------------------------------
+    function renderApp() {
+      const filteredTasks = getFilteredTasks();
+      renderKPIs(filteredTasks);
+      updateTabStyling();
+
+      switch (activeView) {
+        case 'board':
+          renderBoardView(filteredTasks);
+          break;
+        case 'list':
+          renderListView(filteredTasks);
+          break;
+        case 'my-work':
+          renderMyActiveWorkView(filteredTasks);
+          break;
+        case 'radar':
+          renderBlockerRadarView(filteredTasks);
+          break;
+        case 'roadmap':
+          renderRoadmapView(filteredTasks);
+          break;
+      }
+    }
+
+    document.addEventListener('click', (event) => {
+      const menu = document.getElementById('pm-menu');
+      if (!menu.contains(event.target)) menu.open = false;
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      const menu = document.getElementById('pm-menu');
+      if (menu.open) {
+        menu.open = false;
+        menu.querySelector('summary').focus();
+      } else if (!document.getElementById('hierarchyModal').classList.contains('hidden')) {
+        closeHierarchyModal();
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        if (typeof crypto.randomUUID !== 'function' || typeof structuredClone !== 'function') {
+          throw new Error('Use HTTPS and an up-to-date browser to run the tracker.');
+        }
+        await readSharedState();
+        myWorkPersona = CURRENT_USER;
+        document.getElementById('todayLabel').textContent = getTodayISO();
+        populateGlobalFilterDropdowns();
+        renderApp();
+        document.getElementById('loadingOverlay').classList.add('hidden');
+      } catch (err) {
+        console.error('PlanBraid PM load error:', err);
+        if (err.code === 'session_replaced' && window.parent !== window) window.parent.disconnectReplacedInstance();
+        document.getElementById('loadingMessage').textContent = `${err.message || 'Unable to load the tracker.'} Check your connection or sign in again.`;
+        document.getElementById('retryLoad').classList.remove('hidden');
+        document.getElementById('loadingOverlay').classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

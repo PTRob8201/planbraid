@@ -1,0 +1,26 @@
+/*!
+ * PlanBraid - outlining, project tracking, and material orders.
+ * Copyright (C) 2026 Robert Wasniowski
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ * Licensed under GNU AGPL version 3 or later; see LICENSE in the release root.
+ * Distributed WITHOUT ANY WARRANTY, including MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+
+:root[data-design="vibrant"] { --design-radius: 16px; }
+:root[data-design="vibrant"][data-theme="light"] {
+    --page: #f7f2ff; --surface: #fff; --surface-soft: #f0e9fb;
+    --line: #ddcfee; --text: #37254c; --muted: #6d597f; --quiet: #806b90;
+    --accent: #7536a8; --accent-soft: #f0e4ff; --focus: #633093; --action-text: #fff;
+}
+:root[data-design="vibrant"][data-theme="dark"] {
+    --page: #21172e; --surface: #30243f; --surface-soft: #3d3050;
+    --line: #604d76; --text: #f8efff; --muted: #d0c0dc; --quiet: #bbabc9;
+    --accent: #d5adff; --accent-soft: #503c68; --focus: #e2c1ff; --action-text: #291a36;
+}
+:root[data-design="vibrant"][data-theme="sepia"] { --accent: #804174; --accent-soft: #f1dfdf; --focus: #713768; }
+:root[data-design="vibrant"] :is(.project-outline-heading, #pm-separate-tasks, #project-agenda-content, .dashboard-section, .endless-project, :is(#pm-project-header, #pm-site-info), .modal, .agenda-card, .pm-board-card, .settings-card) { @apply rounded-2xl; }
+:root[data-design="vibrant"] #outline:not([hidden]) { @apply rounded-b-2xl; }
+:root[data-design="vibrant"] :is(.nav-item.active, .doc-item.active) { box-shadow: inset 3px 0 var(--accent); }
+:root[data-design="vibrant"] :is(.app, #modal-root) svg:not(.brand-mark) { stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }

@@ -1,0 +1,83 @@
+<!doctype html>
+<!--
+PlanBraid - outlining, project tracking, and material orders.
+Copyright (C) 2026 Robert Wasniowski
+SPDX-License-Identifier: AGPL-3.0-or-later
+Licensed under GNU AGPL version 3 or later; see LICENSE in the release root.
+Distributed WITHOUT ANY WARRANTY, including MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+-->
+<html lang="en"><head><meta charset="utf-8"><title>Supply catalog test</title></head>
+<body><pre id="result">Running...</pre><iframe id="app" title="Synthetic Supply" style="width:390px;height:750px"></iframe>
+<script>
+let role = 'technician';
+let submitted;
+const fixture = {
+  settings: {version: 1, data: {categories: ['Test'], units: ['ea', 'box'], defaultUnit: 'ea'}},
+  catalog: {version: 1, data: [
+    {id: 'c1', partNumber: 'ABC-123', name: 'Widget', category: 'Test', unit: 'box', spec: '', isFrequent: false, image: ''},
+    {id: 'c2', partNumber: 'XYZ', name: 'Other Widget', category: 'Test', unit: 'ea', spec: '', isFrequent: false, image: ''}
+  ]},
+  orders: [], notifications: []
+};
+window.api = async (action, body) => {
+  if (action === 'supply-session') return {id: 99, username: 'synthetic', role};
+  if (action === 'supply-update') {
+    submitted = body.orders[0].data;
+    fixture.orders.unshift({version: 1, data: submitted});
+    fixture.notifications = [{id: 1, orderId: submitted.id, partNumber: 'NEW', name: '<New>', jobSite: 'Test'}];
+  }
+  if (action === 'supply-notification-read') fixture.notifications = [];
+  return structuredClone({...fixture, notifications: role === 'technician' ? [] : fixture.notifications});
+};
+async function run() {
+  const frame = document.getElementById('app');
+  const html = await (await fetch('../supply-app.html')).text();
+  const base = new URL('../', location.href).href;
+  const load = async () => {
+    frame.srcdoc = html.replace('<head>', `<head><base href="${base}">`);
+    await new Promise(resolve => frame.addEventListener('load', resolve, {once: true}));
+    for (let i = 0; i < 100 && frame.contentDocument.getElementById('startup-overlay'); i++) await new Promise(r => setTimeout(r, 20));
+    if (frame.contentDocument.getElementById('startup-overlay')) throw Error('Supply failed to load');
+    return frame.contentDocument;
+  };
+  const assert = (ok, message) => { if (!ok) throw Error(message); };
+  const input = (el, value) => { el.value = value; el.dispatchEvent(new frame.contentWindow.Event('input', {bubbles: true})); };
+  let doc = await load();
+  let row = doc.querySelector('#order-lines-tbody tr');
+  assert(!row.classList.contains('order-line-custom'), 'Blank row is not custom');
+  let part = row.querySelector('[data-field=partNumber]');
+  input(part, 'abc');
+  assert(row.classList.contains('order-line-custom'), 'Unmatched row is amber');
+  assert(doc.querySelectorAll('#catalog-suggestions button').length === 1, 'Part search');
+  doc.querySelector('#catalog-suggestions button').click();
+  row = doc.querySelector('#order-lines-tbody tr');
+  assert(row.querySelector('[data-field=name]').value === 'Widget' && row.querySelector('[data-field=unit]').value === 'box', 'Selection fills details');
+  assert(!row.classList.contains('order-line-custom'), 'Selected row matches catalog');
+  const name = row.querySelector('[data-field=name]');
+  input(name, 'widget');
+  assert(doc.querySelectorAll('#catalog-suggestions button').length === 2, 'Description search');
+  name.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown', {key: 'ArrowDown', bubbles: true}));
+  name.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+  row = doc.querySelector('#order-lines-tbody tr');
+  input(row.querySelector('[data-field=partNumber]'), 'NEW');
+  input(row.querySelector('[data-field=name]'), '<New>');
+  assert(row.classList.contains('order-line-custom'), 'Edited item becomes custom');
+  assert(!doc.querySelector('[data-action=save-line-to-catalog]'), 'No save action');
+  input(doc.getElementById('job-site'), 'Test');
+  input(doc.getElementById('wo-number'), '123');
+  input(doc.getElementById('tech-name'), 'Synthetic');
+  doc.querySelector('[data-action=submit-order]').click();
+  for (let i = 0; i < 100 && !submitted; i++) await new Promise(r => setTimeout(r, 20));
+  assert(submitted && submitted.items[0].partNumber === 'NEW', 'Custom order submitted');
+  role = 'office';
+  doc = await load();
+  assert(!doc.getElementById('catalog-notices').hidden, 'Office sees notification');
+  assert(doc.getElementById('catalog-notices-list').textContent.includes('<New>'), 'Notification escapes item name');
+  assert(!doc.querySelector('#catalog-notices-list new'), 'Notification does not inject HTML');
+  doc.querySelector('[data-action=dismiss-catalog-notice]').click();
+  await new Promise(r => setTimeout(r, 20));
+  assert(doc.getElementById('catalog-notices').hidden, 'Dismiss hides notification');
+  document.getElementById('result').textContent = 'PASS';
+}
+run().catch(error => { document.getElementById('result').textContent = 'FAIL: ' + error.message; console.error(error); });
+</script></body></html>

@@ -1,0 +1,2449 @@
+<!DOCTYPE html>
+<!--
+PlanBraid - outlining, project tracking, and material orders.
+Copyright (C) 2026 Robert Wasniowski
+SPDX-License-Identifier: AGPL-3.0-or-later
+Licensed under GNU AGPL version 3 or later; see LICENSE in the release root.
+Distributed WITHOUT ANY WARRANTY, including MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PlanBraid Supply | Tech-to-Office Material Order System</title>
+  <link rel="stylesheet" href="assets/css/supply.css?v=2.1.4">
+  <style>
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    .order-line-custom, .order-line-custom:hover { background: #fff1d6; }
+    .catalog-suggestions[hidden] { display: none !important; }
+    .catalog-suggestions { position: fixed; z-index: 60; max-height: 220px; overflow-y: auto; background: white; border: 1px solid #94a3b8; border-radius: 8px; box-shadow: 0 8px 20px #0003; }
+    .catalog-suggestions button { display: block; width: 100%; padding: 8px 10px; text-align: left; font-size: 13px; color: #0f172a; }
+    .catalog-suggestions button:hover, .catalog-suggestions button[aria-selected="true"] { background: #fef3c7; }
+    .catalog-suggestions small { display: block; color: #475569; }
+    #catalog-notices { padding: 12px; border: 1px solid #d97706; border-radius: 12px; background: #fffbeb; }
+    #catalog-notices[hidden] { display: none; }
+    .catalog-notice { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 13px; }
+    .catalog-notice small { display: block; color: #475569; }
+    .catalog-notice button { color: #92400e; font-weight: bold; text-decoration: underline; }
+    @media print {
+      body * { visibility: hidden; }
+      #print-ticket-container, #print-ticket-container * { visibility: visible; }
+      #print-ticket-container {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: white;
+        color: black;
+        padding: 16px;
+      }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 font-sans antialiased min-h-screen flex flex-col">
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full px-4 sm:px-0"></div>
+
+  <!-- Top Navigation Header -->
+  <header class="bg-slate-950 text-white shadow-md sticky top-0 z-30 border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between py-2.5 gap-2.5">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-extrabold shadow-inner shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight leading-tight">PlanBraid <span class="text-amber-400">Supply</span></h1>
+            <p class="text-[11px] text-slate-400">Field Tech Material Order &amp; Office Dispatch</p>
+            <p class="text-[11px] text-slate-400"><span id="session-name"></span> &middot; <button type="button" id="refresh-data" class="underline">Refresh</button></p>
+          </div>
+        </div>
+
+        <!-- 4 Navigation Tabs -->
+        <nav class="grid grid-cols-4 bg-slate-900 p-1 rounded-xl border border-slate-800 w-full md:w-auto gap-1" aria-label="Primary Navigation">
+          <button type="button" data-action="switch-view" data-view="new-order" id="nav-new-order" class="min-h-[38px] px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 bg-amber-500 text-slate-950 shadow">
+            <span>New Order</span>
+            <span id="nav-cart-badge" class="px-1.5 py-0.5 text-[10px] rounded-full bg-slate-950 text-amber-400 font-extrabold tabular-nums hidden">0</span>
+          </button>
+
+          <button type="button" data-action="switch-view" data-view="orders" id="nav-orders" class="min-h-[38px] px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-800">
+            <span>Orders</span>
+            <span id="nav-orders-badge" class="px-1.5 py-0.5 text-[10px] rounded-full bg-slate-800 text-slate-200 font-extrabold tabular-nums">0</span>
+          </button>
+
+          <button type="button" data-action="switch-view" data-view="catalog" id="nav-catalog" class="min-h-[38px] px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-800">
+            <span>Catalog</span>
+          </button>
+
+          <button type="button" data-action="switch-view" data-view="settings" id="nav-settings" class="min-h-[38px] px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-800">
+            <span>Settings</span>
+          </button>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-5">
+    <section id="catalog-notices" hidden aria-label="Catalog notifications">
+      <h2 class="text-sm font-extrabold">Items not in the catalog</h2>
+      <div id="catalog-notices-list"></div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- VIEW 1: NEW ORDER (COMPACT JOB DETAILS + ORDER TABLE + FREQUENT TABLE) -->
+    <!-- ===================================================================== -->
+    <section id="view-new-order" class="space-y-4">
+
+      <!-- 1. Compact Job & Tech Details Bar -->
+      <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-3.5">
+        <div class="flex items-center justify-between mb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded bg-slate-900 text-amber-400 flex items-center justify-center text-[11px] font-extrabold">1</span>
+            <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-700">Job &amp; Technician Details</h2>
+          </div>
+          <span class="text-[11px] text-slate-400">* Required</span>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-2.5">
+          <div class="col-span-2 sm:col-span-2 lg:col-span-3">
+            <label for="job-site" class="block text-[11px] font-bold text-slate-600 mb-0.5">Job Name / Site Address *</label>
+            <input type="text" id="job-site" placeholder="e.g., Meridian Medical - 450 Oak" class="w-full h-9 px-2.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-semibold text-slate-900" />
+          </div>
+
+          <div class="col-span-1 sm:col-span-1 lg:col-span-2">
+            <label for="wo-number" class="block text-[11px] font-bold text-slate-600 mb-0.5">Job / PO # *</label>
+            <input type="text" id="wo-number" placeholder="e.g., PO-88412" class="w-full h-9 px-2.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-mono font-bold text-slate-900" />
+          </div>
+
+          <div class="col-span-1 sm:col-span-1 lg:col-span-2">
+            <label for="tech-name" class="block text-[11px] font-bold text-slate-600 mb-0.5">Technician *</label>
+            <input type="text" id="tech-name" placeholder="Tech Name" class="w-full h-9 px-2.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-semibold text-slate-900" />
+          </div>
+
+          <div class="col-span-1 sm:col-span-1 lg:col-span-2">
+            <label for="date-needed" class="block text-[11px] font-bold text-slate-600 mb-0.5">Needed By *</label>
+            <input type="date" id="date-needed" class="w-full h-9 px-2 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-semibold text-slate-900" />
+          </div>
+
+          <div class="col-span-1 sm:col-span-1 lg:col-span-1">
+            <label for="priority-level" class="block text-[11px] font-bold text-slate-600 mb-0.5">Priority</label>
+            <select id="priority-level" class="w-full h-9 px-1.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-bold text-slate-900">
+              <option value="Routine">Routine</option>
+              <option value="Urgent">Urgent</option>
+              <option value="Emergency">Emergency</option>
+            </select>
+          </div>
+
+          <div class="col-span-2 sm:col-span-2 lg:col-span-2">
+            <label for="delivery-method" class="block text-[11px] font-bold text-slate-600 mb-0.5">Delivery</label>
+            <select id="delivery-method" class="w-full h-9 px-2 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-semibold text-slate-900">
+              <option value="Office Will-Call">Office Will-Call</option>
+              <option value="Jobsite Drop">Jobsite Drop</option>
+              <option value="Tech Van Restock">Tech Van Restock</option>
+            </select>
+          </div>
+
+          <div class="col-span-2 sm:col-span-4 lg:col-span-12">
+            <input type="text" id="order-notes" placeholder="General order notes (gate code, dock instructions, site contact...)" class="w-full h-8 px-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs text-slate-800" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Active Material Order Table -->
+      <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+        <div class="px-4 py-3 bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div class="flex items-center gap-2.5">
+            <span class="w-6 h-6 rounded-md bg-amber-500 text-slate-950 flex items-center justify-center text-xs font-extrabold shrink-0">2</span>
+            <div>
+              <h2 class="text-sm sm:text-base font-extrabold leading-tight">Active Material Order Table</h2>
+              <p class="text-[11px] text-slate-400 tabular-nums">
+                <span id="order-line-count" class="font-bold text-amber-400">0</span> line items &bull;
+                <span id="order-unit-count" class="font-bold text-white">0</span> total qty
+              </p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" data-action="open-catalog-picker" class="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 shadow transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+              </svg>
+              <span>Add from Catalog</span>
+            </button>
+
+            <button type="button" data-action="add-blank-row" class="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center gap-1.5 border border-slate-700 transition">
+              <span>+ Add Blank Row</span>
+            </button>
+
+            <button type="button" data-action="clear-draft-order" id="btn-clear-order" class="min-h-[38px] px-3 py-1.5 rounded-lg bg-slate-800/70 hover:bg-rose-950 text-slate-300 hover:text-rose-300 text-xs font-bold border border-slate-700 transition hidden">
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Explicit 7-Column Table (table-auto with guaranteed minimum column widths) -->
+        <div class="overflow-x-auto">
+          <table class="w-full table-auto text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
+                <th class="py-2.5 px-3 w-14 min-w-[56px] text-center">Pic</th>
+                <th class="py-2.5 px-3 w-36 min-w-[135px]">Part #</th>
+                <th class="py-2.5 px-3 min-w-[230px]">Item Description *</th>
+                <th class="py-2.5 px-3 w-28 min-w-[105px]">Unit</th>
+                <th class="py-2.5 px-3 w-36 min-w-[135px] text-center">Qty</th>
+                <th class="py-2.5 px-3 min-w-[180px]">Line Notes</th>
+                <th class="py-2.5 px-3 w-12 min-w-[48px] text-center">Del</th>
+              </tr>
+            </thead>
+            <tbody id="order-lines-tbody" class="divide-y divide-slate-200 text-sm">
+              <!-- Populated dynamically via JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <p class="text-xs text-slate-500">Amber rows are not in the catalog. Search by part number or description. Office and admin users are notified when an order contains a non-catalog item.</p>
+          <button type="button" data-action="submit-order" class="min-h-[42px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm shadow transition flex items-center justify-center gap-2 shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span>Submit Order to Office</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. Frequently Ordered Items Table -->
+      <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md bg-slate-900 text-amber-400 flex items-center justify-center text-xs font-extrabold">3</span>
+            <div>
+              <h2 class="text-sm font-extrabold text-slate-900">Frequently Ordered Items</h2>
+              <p class="text-[11px] text-slate-500">One-tap add common field hardware into your order table</p>
+            </div>
+          </div>
+          <button type="button" data-action="switch-view" data-view="catalog" class="text-xs font-bold text-amber-700 hover:underline">
+            Edit Catalog &rarr;
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full table-auto text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
+                <th class="py-2.5 px-3 w-14 min-w-[56px] text-center">Pic</th>
+                <th class="py-2.5 px-3 w-36 min-w-[130px]">Part #</th>
+                <th class="py-2.5 px-3 min-w-[220px]">Item Description &amp; Spec</th>
+                <th class="py-2.5 px-3 w-40 min-w-[150px]">Category</th>
+                <th class="py-2.5 px-3 w-20 min-w-[70px] text-center">Unit</th>
+                <th class="py-2.5 px-3 w-24 min-w-[85px] text-center">Qty</th>
+                <th class="py-2.5 px-3 w-36 min-w-[135px] text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="frequent-items-tbody" class="divide-y divide-slate-200 text-sm">
+              <!-- Populated dynamically via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- VIEW 2: ORDERS (CLEAN FILTER TABS AT TOP + STATUS BUTTONS IN ROWS)    -->
+    <!-- ===================================================================== -->
+    <section id="view-orders" class="hidden space-y-4">
+
+      <!-- Top Filter Bar (ONLY Search, Sort, and Subtle Filter Tabs — NO Status Change Buttons Here) -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-3">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base font-extrabold text-slate-900">Submitted Material Orders</h2>
+            <p class="text-xs text-slate-500" id="orders-help">Click a status button inside any order row to update its fulfillment stage</p>
+          </div>
+
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input type="text" id="orders-search" placeholder="Search Order ID, Job, PO #, Tech..." class="min-h-[38px] px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs w-full sm:w-64" />
+            <select id="orders-sort" class="min-h-[38px] px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-bold">
+              <option value="newest">Sort: Newest First</option>
+              <option value="oldest">Sort: Oldest First</option>
+              <option value="priority">Sort: Highest Priority</option>
+              <option value="needed">Sort: Needed By Date</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Subtle Filter Tabs (Read-only view filters with counts) -->
+        <div id="orders-filter-tabs" class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+
+      <!-- Orders Table (Each Row Contains Its Own 5 Interactive Status Buttons) -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full table-auto text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-900 text-slate-300 text-[11px] font-extrabold uppercase tracking-wider">
+                <th class="py-3 px-3 min-w-[130px]">Order ID</th>
+                <th class="py-3 px-3 min-w-[210px]">Job / Site &amp; PO #</th>
+                <th class="py-3 px-3 min-w-[120px]">Tech / Needed</th>
+                <th class="py-3 px-3 min-w-[95px]">Priority</th>
+                <th class="py-3 px-3 min-w-[90px] text-center">Items</th>
+                <th class="py-3 px-3 min-w-[330px]">Status (Click to Update)</th>
+                <th class="py-3 px-3 min-w-[165px] text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="orders-table-tbody" class="divide-y divide-slate-200 text-sm">
+              <!-- Populated dynamically via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Bottom Export & Share Toolbar -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <span class="text-xs font-bold text-slate-600">Export &amp; Batch Share Orders:</span>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" data-action="export-filtered-csv" class="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition">
+            Export Filtered CSV
+          </button>
+          <button type="button" data-action="export-all-csv" class="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition">
+            Export All CSV
+          </button>
+          <button type="button" data-action="export-json-backup" class="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold transition">
+            Export JSON
+          </button>
+          <button type="button" data-action="copy-orders-summary" class="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold transition">
+            Copy Table Summary
+          </button>
+          <a id="orders-batch-mailto" href="#" class="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold inline-flex items-center transition">
+            Email Batch
+          </a>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- VIEW 3: CATALOG MANAGER (FULL CRUD TABLE WITH PICTURES)               -->
+    <!-- ===================================================================== -->
+    <section id="view-catalog" class="hidden space-y-4">
+
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-base font-extrabold text-slate-900">Hardware &amp; Material Catalog Manager</h2>
+          <p class="text-xs text-slate-500">Manage parts, upload photos, assign categories/units, and pin frequently ordered items</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" data-action="open-catalog-form" data-id="" class="min-h-[38px] px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold shadow transition">
+            + New Catalog Item
+          </button>
+          <button type="button" data-action="export-json-backup" class="min-h-[38px] px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition">
+            Export JSON
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs grid grid-cols-1 md:grid-cols-12 gap-2.5">
+        <div class="md:col-span-6">
+          <input type="text" id="mgr-search" placeholder="Search Part #, Item Name, or Spec..." class="w-full min-h-[38px] px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs" />
+        </div>
+        <div class="md:col-span-3">
+          <select id="mgr-category-filter" class="w-full min-h-[38px] px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-bold">
+            <!-- Populated from state.categories -->
+          </select>
+        </div>
+        <div class="md:col-span-3 flex items-center">
+          <label class="flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 w-full min-h-[38px]">
+            <input type="checkbox" id="mgr-frequent-only" class="w-4 h-4 rounded text-amber-500 focus:ring-amber-500" />
+            <span class="text-xs font-bold text-slate-700">Frequently Ordered Only</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Catalog Table -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full table-auto text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-900 text-slate-300 text-[11px] font-extrabold uppercase tracking-wider">
+                <th class="py-3 px-3 w-16 min-w-[64px] text-center">Picture</th>
+                <th class="py-3 px-3 w-36 min-w-[135px]">Part #</th>
+                <th class="py-3 px-3 min-w-[230px]">Item Description &amp; Spec</th>
+                <th class="py-3 px-3 w-44 min-w-[165px]">Category</th>
+                <th class="py-3 px-3 w-28 min-w-[100px]">Unit</th>
+                <th class="py-3 px-3 w-36 min-w-[135px] text-center">Frequent</th>
+                <th class="py-3 px-3 w-32 min-w-[125px] text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="catalog-manager-tbody" class="divide-y divide-slate-200 text-sm">
+              <!-- Populated dynamically via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- VIEW 4: SETTINGS (CATEGORY MANAGER & UNITS MANAGER)                   -->
+    <!-- ===================================================================== -->
+    <section id="view-settings" class="hidden space-y-5">
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        <!-- Category Manager -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
+          <div>
+            <h2 class="text-base font-extrabold text-slate-900">Category Manager</h2>
+            <p class="text-xs text-slate-500">Add, rename, reorder, or delete catalog hardware categories</p>
+          </div>
+
+          <div class="flex gap-2">
+            <input type="text" id="new-category-input" placeholder="New category name (e.g., Fire Alarm)" class="flex-1 min-h-[38px] px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-semibold" />
+            <button type="button" data-action="add-category" class="min-h-[38px] px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold transition">
+              + Add Category
+            </button>
+          </div>
+
+          <div class="border border-slate-200 rounded-xl overflow-hidden">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold uppercase text-slate-500">
+                  <th class="py-2 px-3">Category Name</th>
+                  <th class="py-2 px-3 w-20 text-center">Items</th>
+                  <th class="py-2 px-3 w-36 text-right">Manage</th>
+                </tr>
+              </thead>
+              <tbody id="settings-categories-tbody" class="divide-y divide-slate-200 text-xs">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Units Manager -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
+          <div>
+            <h2 class="text-base font-extrabold text-slate-900">Units Manager</h2>
+            <p class="text-xs text-slate-500">Manage measurement units (ea, box, ft, roll, pack) and set the default unit</p>
+          </div>
+
+          <div class="flex gap-2">
+            <input type="text" id="new-unit-input" placeholder="New unit (e.g., spool, kit, pair)" class="flex-1 min-h-[38px] px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-semibold" />
+            <button type="button" data-action="add-unit" class="min-h-[38px] px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold transition">
+              + Add Unit
+            </button>
+          </div>
+
+          <div class="border border-slate-200 rounded-xl overflow-hidden">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold uppercase text-slate-500">
+                  <th class="py-2 px-3">Unit Code</th>
+                  <th class="py-2 px-3 w-28 text-center">Default</th>
+                  <th class="py-2 px-3 w-32 text-right">Manage</th>
+                </tr>
+              </thead>
+              <tbody id="settings-units-tbody" class="divide-y divide-slate-200 text-xs">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+  <div id="catalog-suggestions" class="catalog-suggestions" role="listbox" aria-label="Catalog matches" hidden></div>
+
+  <div id="startup-overlay" class="fixed inset-0 z-[100] bg-slate-950/90 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl p-6 max-w-md text-center">
+      <p id="startup-message" class="font-bold">Connecting to PlanBraid Supply...</p>
+      <button id="startup-retry" type="button" class="hidden mt-4 px-4 py-2 bg-amber-500 rounded-lg font-bold">Try again</button>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 1: ADD FROM CATALOG PICKER MODAL                                -->
+  <!-- ===================================================================== -->
+  <div id="catalog-picker-modal" class="fixed inset-0 z-50 bg-slate-950/75 hidden items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-5xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6 flex flex-col max-h-[88vh]">
+      <div class="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between shrink-0">
+        <div>
+          <h3 class="text-base font-extrabold">Add Materials from Catalog</h3>
+          <p class="text-xs text-slate-400">Set quantity and click "+ Add" or select multiple checkboxes</p>
+        </div>
+        <button type="button" data-action="close-catalog-picker" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold">
+          &times;
+        </button>
+      </div>
+
+      <div class="p-3.5 bg-slate-50 border-b border-slate-200 grid grid-cols-1 sm:grid-cols-12 gap-2.5 shrink-0">
+        <div class="sm:col-span-7">
+          <input type="text" id="picker-search" placeholder="Search Part #, Item Description, or Spec..." class="w-full min-h-[38px] px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs" />
+        </div>
+        <div class="sm:col-span-5">
+          <select id="picker-category" class="w-full min-h-[38px] px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-bold">
+            <!-- Populated from state.categories -->
+          </select>
+        </div>
+      </div>
+
+      <div class="overflow-auto flex-1">
+        <table class="w-full table-auto text-left border-collapse">
+          <thead class="sticky top-0 bg-slate-100 border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wider text-slate-600 z-10">
+            <tr>
+              <th class="py-2.5 px-3 w-10 min-w-[40px] text-center">
+                <input type="checkbox" id="picker-select-all" class="w-4 h-4 rounded text-amber-500 focus:ring-amber-500" />
+              </th>
+              <th class="py-2.5 px-3 w-14 min-w-[56px] text-center">Pic</th>
+              <th class="py-2.5 px-3 w-36 min-w-[130px]">Part #</th>
+              <th class="py-2.5 px-3 min-w-[220px]">Item Description &amp; Spec</th>
+              <th class="py-2.5 px-3 w-40 min-w-[150px]">Category</th>
+              <th class="py-2.5 px-3 w-20 min-w-[70px] text-center">Unit</th>
+              <th class="py-2.5 px-3 w-24 min-w-[85px] text-center">Qty</th>
+              <th class="py-2.5 px-3 w-28 min-w-[105px] text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody id="picker-table-tbody" class="divide-y divide-slate-200 text-sm">
+            <!-- Populated dynamically via JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="p-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0">
+        <button type="button" data-action="add-selected-picker" class="min-h-[38px] px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition">
+          Add Checked Items (<span id="picker-checked-count">0</span>)
+        </button>
+        <button type="button" data-action="close-catalog-picker" class="min-h-[38px] px-5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold transition">
+          Done &amp; Return to Order
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 2: CATALOG ADD / EDIT ITEM MODAL                                -->
+  <!-- ===================================================================== -->
+  <div id="catalog-form-modal" class="fixed inset-0 z-50 bg-slate-950/75 hidden items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6">
+      <div class="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between">
+        <h3 id="catalog-form-title" class="text-base font-extrabold">Add New Catalog Item</h3>
+        <button type="button" data-action="close-catalog-form" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold">
+          &times;
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 max-h-[82vh] overflow-y-auto">
+        <input type="hidden" id="edit-cat-id" />
+
+        <!-- Picture Upload + Preview -->
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex items-center gap-4">
+          <div id="edit-cat-preview-box" class="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 bg-white flex items-center justify-center overflow-hidden shrink-0"></div>
+          <div class="flex-1 space-y-2">
+            <div class="flex flex-wrap gap-2">
+              <label class="min-h-[34px] px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer inline-flex items-center">
+                <span>Upload Photo</span>
+                <input type="file" id="edit-cat-file" accept="image/*" class="hidden" />
+              </label>
+              <button type="button" data-action="clear-cat-image" class="min-h-[34px] px-3 py-1 rounded-lg bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-300 text-xs font-bold">
+                Remove
+              </button>
+            </div>
+            <input type="text" id="edit-cat-image-url" placeholder="Or paste image URL (https://...)" class="w-full h-8 px-2.5 rounded-lg border border-slate-300 bg-white text-xs outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+          <div class="sm:col-span-5">
+            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Part # / SKU *</label>
+            <input type="text" id="edit-cat-part" placeholder="e.g., PDK-RED2" class="w-full h-9 px-3 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-mono font-bold" />
+          </div>
+          <div class="sm:col-span-7">
+            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Item Description *</label>
+            <input type="text" id="edit-cat-name" placeholder="e.g., PDK Red 2-Door Controller" class="w-full h-9 px-3 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-semibold" />
+          </div>
+          <div class="sm:col-span-6">
+            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Category</label>
+            <select id="edit-cat-category" class="w-full h-9 px-3 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-bold"></select>
+          </div>
+          <div class="sm:col-span-6">
+            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Default Unit</label>
+            <select id="edit-cat-unit" class="w-full h-9 px-3 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs font-bold"></select>
+          </div>
+          <div class="sm:col-span-12">
+            <label class="block text-[11px] font-bold uppercase text-slate-600 mb-1">Manufacturer / Technical Spec</label>
+            <input type="text" id="edit-cat-spec" placeholder="e.g., ProdataKey • PoE++ • OSDP" class="w-full h-9 px-3 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-xs" />
+          </div>
+          <div class="sm:col-span-12">
+            <label class="flex items-center gap-2.5 p-3 rounded-xl border border-amber-200 bg-amber-50/70 cursor-pointer">
+              <input type="checkbox" id="edit-cat-frequent" class="w-4 h-4 rounded text-amber-500 focus:ring-amber-500" />
+              <span class="text-xs font-bold text-slate-900">Pin to "Frequently Ordered Items" Table</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-200 flex justify-end gap-2">
+          <button type="button" data-action="close-catalog-form" class="min-h-[38px] px-4 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs">Cancel</button>
+          <button type="button" data-action="save-catalog-item" class="min-h-[38px] px-5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow">Save Item</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 3: ORDER DETAIL & PICK TICKET MODAL (WITH 5 STATUS BUTTONS)     -->
+  <!-- ===================================================================== -->
+  <div id="order-detail-modal" class="fixed inset-0 z-50 bg-slate-950/75 hidden items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6 flex flex-col max-h-[90vh]">
+      <div class="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between shrink-0">
+        <div>
+          <span id="detail-modal-subtitle" class="text-[11px] font-extrabold uppercase tracking-wider text-amber-400">Material Requisition</span>
+          <h3 id="detail-modal-title" class="text-lg font-extrabold font-mono">ORD-2026-0000</h3>
+        </div>
+        <button type="button" data-action="close-order-detail" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold">
+          &times;
+        </button>
+      </div>
+
+      <div id="detail-modal-body" class="p-5 space-y-4 overflow-y-auto flex-1">
+        <!-- Populated dynamically via JS -->
+      </div>
+
+      <div class="p-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" data-action="copy-detail-summary" class="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition">
+            Copy Summary
+          </button>
+          <a id="detail-mailto-link" href="#" class="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold inline-flex items-center transition">
+            Email Order
+          </a>
+          <button type="button" data-action="download-detail-csv" class="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-bold transition">
+            Download CSV
+          </button>
+          <button type="button" data-action="print-detail-ticket" class="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-bold transition">
+            Print Pick Ticket
+          </button>
+        </div>
+
+        <button type="button" data-action="close-order-detail" class="min-h-[38px] px-5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold transition">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden Print Ticket Container -->
+  <div id="print-ticket-container" class="hidden"></div>
+
+  <!-- ===================================================================== -->
+  <!-- SELF-CONTAINED IIFE WITH STRICT DATA-ACTION EVENT DELEGATION          -->
+  <!-- ===================================================================== -->
+  <script>
+    (function () {
+      'use strict';
+
+      const ORDER_STATUSES = ['Submitted', 'Reviewing', 'Ordered', 'Ready / Picked', 'Delivered'];
+
+      const STATUS_BUTTON_STYLES = {
+        'Submitted': {
+          active: 'bg-amber-500 text-slate-950 border-amber-600 font-extrabold shadow-2xs',
+          inactive: 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+        },
+        'Reviewing': {
+          active: 'bg-sky-600 text-white border-sky-700 font-extrabold shadow-2xs',
+          inactive: 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+        },
+        'Ordered': {
+          active: 'bg-indigo-600 text-white border-indigo-700 font-extrabold shadow-2xs',
+          inactive: 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+        },
+        'Ready / Picked': {
+          active: 'bg-teal-600 text-white border-teal-700 font-extrabold shadow-2xs',
+          inactive: 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+        },
+        'Delivered': {
+          active: 'bg-emerald-600 text-white border-emerald-700 font-extrabold shadow-2xs',
+          inactive: 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+        }
+      };
+
+      let session;
+      let STORAGE_KEYS;
+      let controlsInitialized = false;
+      let serverState = null;
+      let saving = false;
+      let pendingOrderId = null;
+
+      const state = {
+        activeView: 'new-order',
+        categories: [],
+        units: [],
+        defaultUnit: 'ea',
+        catalog: [],
+        orders: [],
+        draftLines: [],
+        ordersStatusFilter: 'All',
+        activeDetailOrderId: null,
+        tempEditCatalogImage: ''
+      };
+
+      // -----------------------------------------------------------------------
+      // INITIALIZATION & PERSISTENCE
+      // -----------------------------------------------------------------------
+      async function request(action, data) {
+        if (window.parent === window || typeof window.parent.api !== 'function') throw new Error('Open Supply from PlanBraid.');
+        return window.parent.api(`supply-${action}`, data === undefined ? {} : data);
+      }
+
+      function applyServerState(data) {
+        serverState = data;
+        state.categories = structuredClone(data.settings.data.categories);
+        state.units = structuredClone(data.settings.data.units);
+        state.defaultUnit = data.settings.data.defaultUnit;
+        state.catalog = structuredClone(data.catalog.data);
+        state.orders = data.orders.map(order => structuredClone(order.data));
+        state.notifications = data.notifications || [];
+      }
+
+      async function refreshData() {
+        applyServerState(await request('state'));
+        syncCategoryAndUnitDropdowns();
+        renderAll();
+      }
+
+      async function init() {
+        try {
+          session = await request('session');
+          if (!Number.isSafeInteger(session.id) || typeof session.username !== 'string' ||
+              !['technician', 'office', 'admin'].includes(session.role)) throw new Error('Invalid Supply session.');
+          STORAGE_KEYS = {
+            DRAFT: `fieldops_draft_user_${session.id}`,
+            TECH_NAME: `fieldops_tech_user_${session.id}`,
+            PENDING_ORDER: `fieldops_pending_order_user_${session.id}`
+          };
+          applyServerState(await request('state'));
+          try {
+            const draft = JSON.parse(localStorage.getItem(STORAGE_KEYS.DRAFT) || '[]');
+            state.draftLines = Array.isArray(draft) && draft.length ? draft : [createBlankLine()];
+            document.getElementById('tech-name').value = localStorage.getItem(STORAGE_KEYS.TECH_NAME) || '';
+            pendingOrderId = localStorage.getItem(STORAGE_KEYS.PENDING_ORDER);
+          } catch (e) {
+            state.draftLines = [createBlankLine()];
+            showToast('Could not load the saved draft from this browser.', 'error');
+          }
+          setDefaultDateNeeded();
+          syncCategoryAndUnitDropdowns();
+          renderAll();
+          if (!controlsInitialized) {
+            setupAccountControls();
+            bindEvents();
+            controlsInitialized = true;
+          }
+          document.getElementById('startup-overlay').remove();
+        } catch (e) {
+          document.getElementById('startup-message').textContent = `Unable to load shared data: ${e.message}`;
+          document.getElementById('startup-retry').classList.remove('hidden');
+        }
+      }
+
+      function createBlankLine() {
+        return {
+          id: 'line-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+          partNumber: '',
+          name: '',
+          unit: state.defaultUnit || 'ea',
+          qty: 1,
+          notes: '',
+          image: ''
+        };
+      }
+
+      function saveDraft() {
+        try {
+          localStorage.setItem(STORAGE_KEYS.DRAFT, JSON.stringify(state.draftLines));
+        } catch (e) {
+          showToast('Could not save your draft in this browser.', 'error');
+        }
+        updateNavBadges();
+      }
+
+      function setPendingOrder(id) {
+        pendingOrderId = id;
+        try {
+          if (id) localStorage.setItem(STORAGE_KEYS.PENDING_ORDER, id);
+          else localStorage.removeItem(STORAGE_KEYS.PENDING_ORDER);
+        } catch (e) {
+          showToast('Could not save submission recovery information in this browser.', 'error');
+        }
+      }
+
+      async function persistAll() {
+        saveDraft();
+        const changes = {};
+        const settings = { categories: state.categories, units: state.units, defaultUnit: state.defaultUnit };
+        if (JSON.stringify(settings) !== JSON.stringify(serverState.settings.data)) {
+          changes.settings = { version: serverState.settings.version, data: settings };
+        }
+        if (JSON.stringify(state.catalog) !== JSON.stringify(serverState.catalog.data)) {
+          changes.catalog = { version: serverState.catalog.version, data: state.catalog };
+        }
+        const oldOrders = new Map(serverState.orders.map(order => [order.data.id, order]));
+        const newOrders = new Map(state.orders.map(order => [order.id, order]));
+        const orderChanges = [];
+        for (const order of state.orders) {
+          const old = oldOrders.get(order.id);
+          if (!old || JSON.stringify(old.data) !== JSON.stringify(order)) {
+            orderChanges.push({ id: order.id, version: old ? old.version : 0, data: order });
+          }
+        }
+        for (const old of serverState.orders) {
+          if (!newOrders.has(old.data.id)) orderChanges.push({ id: old.data.id, version: old.version, delete: true });
+        }
+        if (orderChanges.length) changes.orders = orderChanges;
+        if (!Object.keys(changes).length) return true;
+        if (saving) {
+          showToast('Please wait for the previous save to finish.', 'error');
+          return false;
+        }
+        saving = true;
+        document.body.style.pointerEvents = 'none';
+        try {
+          applyServerState(await request('update', changes));
+          return true;
+        } catch (e) {
+          showToast(`Could not confirm save: ${e.message}. Refresh before retrying.`, 'error');
+          try {
+            await refreshData();
+          } catch (refreshError) {
+            applyServerState(serverState);
+            renderAll();
+            showToast(`Could not reload shared data: ${refreshError.message}`, 'error');
+          }
+          return false;
+        } finally {
+          saving = false;
+          document.body.style.pointerEvents = '';
+        }
+      }
+
+      function setDefaultDateNeeded() {
+        const el = document.getElementById('date-needed');
+        if (!el.value) {
+          const d = new Date();
+          d.setDate(d.getDate() + 1);
+          el.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+      }
+
+      function updateNavBadges() {
+        const activeCount = state.draftLines.filter(l => l.name.trim() || l.partNumber.trim()).length;
+        const cartBadge = document.getElementById('nav-cart-badge');
+        if (activeCount > 0) {
+          cartBadge.textContent = activeCount;
+          cartBadge.classList.remove('hidden');
+        } else {
+          cartBadge.classList.add('hidden');
+        }
+        document.getElementById('nav-orders-badge').textContent = state.orders.length;
+      }
+
+      function syncCategoryAndUnitDropdowns() {
+        const catFilterHtml = `<option value="All">All Categories</option>` +
+          state.categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        const catSelectHtml = state.categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        const unitSelectHtml = state.units.map(u => `<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+
+        const mgrCat = document.getElementById('mgr-category-filter');
+        const pickerCat = document.getElementById('picker-category');
+        const editCat = document.getElementById('edit-cat-category');
+        const editUnit = document.getElementById('edit-cat-unit');
+
+        if (mgrCat) mgrCat.innerHTML = catFilterHtml;
+        if (pickerCat) pickerCat.innerHTML = catFilterHtml;
+        if (editCat) editCat.innerHTML = catSelectHtml;
+        if (editUnit) editUnit.innerHTML = unitSelectHtml;
+      }
+
+      function renderAll() {
+        updateNavBadges();
+        renderCatalogNotices();
+        renderOrderLinesTable();
+        renderFrequentItemsTable();
+        renderOrdersFilterTabs();
+        renderOrdersTable();
+        renderCatalogManagerTable();
+        renderSettingsTables();
+      }
+
+      // -----------------------------------------------------------------------
+      // THUMBNAIL HELPER
+      // -----------------------------------------------------------------------
+      function renderThumb(imageUrl, altText, sizeClass = 'w-10 h-10') {
+        const boxIcon = `<svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>`;
+        if (!imageUrl) {
+          return `<div class="${sizeClass} rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto shrink-0">${boxIcon}</div>`;
+        }
+        return `<div class="${sizeClass} rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center mx-auto shrink-0">
+          <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(altText || 'Part')}" class="w-full h-full object-cover" />
+        </div>`;
+      }
+
+      // -----------------------------------------------------------------------
+      // VIEW 1: ACTIVE MATERIAL ORDER TABLE (ALL 7 COLUMNS EXPLICITLY VISIBLE)
+      // -----------------------------------------------------------------------
+      function lineInCatalog(line) {
+        const normalize = value => value.trim().toLowerCase();
+        return state.catalog.some(item => normalize(item.partNumber) === normalize(line.partNumber) &&
+          normalize(item.name) === normalize(line.name));
+      }
+
+      function updateLineCatalogStatus(line, row) {
+        const custom = !!(line.partNumber.trim() || line.name.trim()) && !lineInCatalog(line);
+        row.classList.toggle('order-line-custom', custom);
+      }
+
+      function renderCatalogNotices() {
+        const panel = document.getElementById('catalog-notices');
+        const notices = state.notifications || [];
+        panel.hidden = session.role === 'technician' || !notices.length;
+        document.getElementById('catalog-notices-list').innerHTML = notices.map(notice => `
+          <div class="catalog-notice">
+            <span><strong>Not in catalog:</strong> ${escapeHtml(notice.partNumber)} &mdash; ${escapeHtml(notice.name)}
+              <small>Order ${escapeHtml(notice.orderId)} &middot; ${escapeHtml(notice.jobSite)}</small></span>
+            <button type="button" data-action="dismiss-catalog-notice" data-id="${notice.id}" aria-label="Dismiss catalog notification">Dismiss</button>
+          </div>`).join('');
+      }
+
+      function hideCatalogSuggestions() {
+        const list = document.getElementById('catalog-suggestions');
+        list.hidden = true;
+        list.innerHTML = '';
+        list.removeAttribute('data-line-id');
+        document.querySelectorAll('input[aria-controls="catalog-suggestions"]').forEach(input => {
+          input.setAttribute('aria-expanded', 'false');
+          input.removeAttribute('aria-activedescendant');
+        });
+      }
+
+      function showCatalogSuggestions(input) {
+        const list = document.getElementById('catalog-suggestions');
+        const query = input.value.trim().toLowerCase();
+        const matches = query ? state.catalog.filter(item =>
+          item.partNumber.toLowerCase().includes(query) || item.name.toLowerCase().includes(query)
+        ).slice(0, 10) : [];
+        if (!matches.length) return hideCatalogSuggestions();
+        hideCatalogSuggestions();
+        list.dataset.lineId = input.dataset.lineId;
+        list.innerHTML = matches.map((item, index) => `
+          <button type="button" role="option" id="catalog-option-${index}" tabindex="-1" aria-selected="false" data-action="select-catalog-suggestion" data-id="${escapeHtml(item.id)}">
+            <strong>${escapeHtml(item.partNumber)}</strong><small>${escapeHtml(item.name)}</small>
+          </button>`).join('');
+        const rect = input.getBoundingClientRect();
+        list.style.left = `${Math.max(0, Math.min(rect.left, window.innerWidth - 200))}px`;
+        list.style.width = `${Math.min(Math.max(rect.width, 200), window.innerWidth)}px`;
+        list.style.top = `${rect.bottom + 220 <= window.innerHeight ? rect.bottom : Math.max(0, rect.top - 220)}px`;
+        list.hidden = false;
+        input.setAttribute('aria-expanded', 'true');
+      }
+
+      function renderOrderLinesTable() {
+        hideCatalogSuggestions();
+        const tbody = document.getElementById('order-lines-tbody');
+        const totalLines = state.draftLines.length;
+        const totalQty = state.draftLines.reduce((sum, l) => sum + (parseInt(l.qty, 10) || 0), 0);
+
+        document.getElementById('order-line-count').textContent = totalLines;
+        document.getElementById('order-unit-count').textContent = totalQty;
+
+        const clearBtn = document.getElementById('btn-clear-order');
+        if (totalLines > 0) {
+          clearBtn.classList.remove('hidden');
+        } else {
+          clearBtn.classList.add('hidden');
+        }
+
+        if (state.draftLines.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="7" class="py-8 px-4 text-center bg-slate-50/50">
+                <p class="text-xs font-bold text-slate-700">Your material order table is empty.</p>
+                <p class="text-xs text-slate-500 mt-1">Click <strong>"Add from Catalog"</strong>, click <strong>"+ Add Blank Row"</strong>, or add from Frequently Ordered Items below.</p>
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        tbody.innerHTML = state.draftLines.map(line => {
+          const unitOptions = state.units.map(u =>
+            `<option value="${escapeHtml(u)}" ${line.unit === u ? 'selected' : ''}>${escapeHtml(u)}</option>`
+          ).join('');
+
+          return `
+            <tr class="hover:bg-amber-50/30 transition ${((line.partNumber.trim() || line.name.trim()) && !lineInCatalog(line)) ? 'order-line-custom' : ''}" data-line-id="${escapeHtml(line.id)}">
+              <!-- Col 1: Picture -->
+              <td class="py-2 px-3 w-14 min-w-[56px] text-center align-middle">
+                ${renderThumb(line.image, line.name, 'w-10 h-10')}
+              </td>
+
+              <!-- Col 2: Part # -->
+              <td class="py-2 px-3 w-36 min-w-[135px] align-middle">
+                <input type="text"
+                  data-field="partNumber"
+                  data-line-id="${escapeHtml(line.id)}"
+                  value="${escapeHtml(line.partNumber)}"
+                  placeholder="Part # / SKU"
+                  role="combobox" aria-label="Part number" aria-autocomplete="list" aria-expanded="false" aria-controls="catalog-suggestions" autocomplete="off"
+                  class="w-full min-w-[115px] px-2.5 py-1.5 text-xs font-mono font-bold border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none" />
+              </td>
+
+              <!-- Col 3: Item Description -->
+              <td class="py-2 px-3 min-w-[230px] align-middle">
+                <input type="text"
+                  data-field="name"
+                  data-line-id="${escapeHtml(line.id)}"
+                  value="${escapeHtml(line.name)}"
+                  placeholder="Enter item description..."
+                  role="combobox" aria-label="Item description" aria-autocomplete="list" aria-expanded="false" aria-controls="catalog-suggestions" autocomplete="off"
+                  class="w-full min-w-[210px] px-2.5 py-1.5 text-xs sm:text-sm font-semibold border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none" />
+              </td>
+
+              <!-- Col 4: Unit -->
+              <td class="py-2 px-3 w-28 min-w-[105px] align-middle">
+                <select
+                  data-field="unit"
+                  data-line-id="${escapeHtml(line.id)}"
+                  class="w-full min-w-[85px] px-2 py-1.5 text-xs font-bold border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none">
+                  ${unitOptions}
+                </select>
+              </td>
+
+              <!-- Col 5: Qty Stepper -->
+              <td class="py-2 px-3 w-36 min-w-[135px] align-middle">
+                <div class="inline-flex items-center justify-center gap-1 w-full">
+                  <button type="button" data-action="step-qty" data-line-id="${escapeHtml(line.id)}" data-delta="-1"
+                    class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-900 font-extrabold text-sm flex items-center justify-center shrink-0">
+                    -
+                  </button>
+                  <input type="number" min="1"
+                    data-field="qty"
+                    data-line-id="${escapeHtml(line.id)}"
+                    value="${line.qty}"
+                    class="w-12 text-center border border-slate-300 rounded-lg py-1 text-xs sm:text-sm font-extrabold text-slate-900 bg-white tabular-nums focus:ring-2 focus:ring-amber-500 outline-none" />
+                  <button type="button" data-action="step-qty" data-line-id="${escapeHtml(line.id)}" data-delta="1"
+                    class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-900 font-extrabold text-sm flex items-center justify-center shrink-0">
+                    +
+                  </button>
+                </div>
+              </td>
+
+              <!-- Col 6: Line Notes -->
+              <td class="py-2 px-3 min-w-[180px] align-middle">
+                <input type="text"
+                  data-field="notes"
+                  data-line-id="${escapeHtml(line.id)}"
+                  value="${escapeHtml(line.notes)}"
+                  placeholder="Door #, MDF, color..."
+                  class="w-full min-w-[160px] px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none" />
+              </td>
+
+              <!-- Col 7: Remove -->
+              <td class="py-2 px-3 w-12 min-w-[48px] text-center align-middle">
+                <button type="button" data-action="remove-line" data-line-id="${escapeHtml(line.id)}"
+                  class="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 inline-flex items-center justify-center transition" title="Remove row">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                  </svg>
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      function addCatalogItemToOrder(item, qty = 1) {
+        const cleanQty = Math.max(1, parseInt(qty, 10) || 1);
+
+        // If the only row in draftLines is completely untouched/blank, replace it cleanly
+        if (
+          state.draftLines.length === 1 &&
+          !state.draftLines[0].partNumber.trim() &&
+          !state.draftLines[0].name.trim() &&
+          !state.draftLines[0].notes.trim()
+        ) {
+          state.draftLines = [];
+        }
+
+        const existing = state.draftLines.find(
+          l => l.partNumber.trim().toLowerCase() === item.partNumber.trim().toLowerCase() &&
+               l.name.trim().toLowerCase() === item.name.trim().toLowerCase()
+        );
+
+        if (existing) {
+          existing.qty += cleanQty;
+        } else {
+          state.draftLines.push({
+            id: 'line-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+            partNumber: item.partNumber || '',
+            name: item.name || '',
+            unit: item.unit || state.defaultUnit || 'ea',
+            qty: cleanQty,
+            notes: '',
+            image: item.image || ''
+          });
+        }
+
+        saveDraft();
+        renderOrderLinesTable();
+        renderFrequentItemsTable();
+        showToast(`Added (${cleanQty} ${item.unit || 'ea'}) ${item.name}`, 'info');
+      }
+
+      // -----------------------------------------------------------------------
+      // FREQUENTLY ORDERED ITEMS TABLE
+      // -----------------------------------------------------------------------
+      function renderFrequentItemsTable() {
+        const tbody = document.getElementById('frequent-items-tbody');
+        const freq = state.catalog.filter(c => c.isFrequent);
+
+        if (freq.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="7" class="py-6 px-4 text-center text-xs text-slate-500">
+                No frequently ordered items pinned yet. Pin items in the <strong>Catalog</strong> tab.
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        tbody.innerHTML = freq.map(item => {
+          const inOrder = state.draftLines.find(
+            l => l.partNumber.trim().toLowerCase() === item.partNumber.trim().toLowerCase() &&
+                 l.name.trim().toLowerCase() === item.name.trim().toLowerCase()
+          );
+          return `
+            <tr class="hover:bg-slate-50 transition">
+              <td class="py-2 px-3 w-14 min-w-[56px] text-center">${renderThumb(item.image, item.name, 'w-9 h-9')}</td>
+              <td class="py-2 px-3 w-36 min-w-[130px] font-mono text-xs font-bold text-slate-700">${escapeHtml(item.partNumber)}</td>
+              <td class="py-2 px-3 min-w-[220px]">
+                <div class="font-bold text-slate-900 text-xs">${escapeHtml(item.name)}</div>
+                ${item.spec ? `<div class="text-[11px] text-slate-500">${escapeHtml(item.spec)}</div>` : ''}
+              </td>
+              <td class="py-2 px-3 w-40 min-w-[150px]">
+                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">${escapeHtml(item.category)}</span>
+              </td>
+              <td class="py-2 px-3 w-20 min-w-[70px] text-center text-xs font-bold text-slate-600">${escapeHtml(item.unit)}</td>
+              <td class="py-2 px-3 w-24 min-w-[85px] text-center">
+                <input type="number" id="freq-qty-${escapeHtml(item.id)}" value="1" min="1"
+                  class="w-16 h-8 text-center rounded-lg border border-slate-300 bg-white text-xs font-extrabold tabular-nums focus:ring-2 focus:ring-amber-500 outline-none" />
+              </td>
+              <td class="py-2 px-3 w-36 min-w-[135px] text-right whitespace-nowrap">
+                ${inOrder ? `<span class="mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-800 tabular-nums">${inOrder.qty}</span>` : ''}
+                <button type="button" data-action="quick-add-frequent" data-id="${escapeHtml(item.id)}"
+                  class="min-h-[32px] px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition">
+                  + Add
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // -----------------------------------------------------------------------
+      // VIEW 2: ORDERS VIEW (FILTER TABS AT TOP + STATUS BUTTONS INSIDE ROWS)
+      // -----------------------------------------------------------------------
+      function renderOrdersFilterTabs() {
+        const container = document.getElementById('orders-filter-tabs');
+        const allStatuses = ['All', ...ORDER_STATUSES];
+
+        container.innerHTML = allStatuses.map(st => {
+          const count = st === 'All'
+            ? state.orders.length
+            : state.orders.filter(o => o.status === st).length;
+          const isSelected = state.ordersStatusFilter === st;
+
+          return `
+            <button type="button" data-action="filter-orders-status" data-status="${escapeHtml(st)}"
+              class="px-3 py-1.5 rounded-lg text-xs font-bold border transition flex items-center gap-1.5 ${
+                isSelected
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+              }">
+              <span>${escapeHtml(st)}</span>
+              <span class="px-1.5 py-0.2 rounded-full text-[10px] tabular-nums ${
+                isSelected ? 'bg-amber-500 text-slate-950 font-extrabold' : 'bg-slate-200 text-slate-700'
+              }">${count}</span>
+            </button>
+          `;
+        }).join('');
+      }
+
+      function getFilteredSortedOrders() {
+        const query = (document.getElementById('orders-search').value || '').trim().toLowerCase();
+        const sortBy = document.getElementById('orders-sort').value;
+
+        const filtered = state.orders.filter(order => {
+          const matchStatus = state.ordersStatusFilter === 'All' || order.status === state.ordersStatusFilter;
+          const matchQuery = !query ||
+            order.id.toLowerCase().includes(query) ||
+            order.jobSite.toLowerCase().includes(query) ||
+            order.woNumber.toLowerCase().includes(query) ||
+            order.techName.toLowerCase().includes(query);
+          return matchStatus && matchQuery;
+        });
+
+        const prioRank = { 'Emergency': 1, 'Urgent': 2, 'Routine': 3 };
+        filtered.sort((a, b) => {
+          if (sortBy === 'oldest') return new Date(a.createdAt) - new Date(b.createdAt);
+          if (sortBy === 'priority') return (prioRank[a.priority] || 9) - (prioRank[b.priority] || 9);
+          if (sortBy === 'needed') return (a.dateNeeded || '').localeCompare(b.dateNeeded || '');
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        });
+
+        return filtered;
+      }
+
+      function renderStatusButtonsGroup(order) {
+        if (session.role === 'technician') {
+          return `<span class="text-xs font-bold">${escapeHtml(order.status)}</span>`;
+        }
+        return `<div class="flex flex-wrap gap-1">
+          ${ORDER_STATUSES.map(st => {
+            const isActive = order.status === st;
+            const style = isActive ? STATUS_BUTTON_STYLES[st].active : STATUS_BUTTON_STYLES[st].inactive;
+            return `<button type="button"
+              data-action="set-order-status"
+              data-order-id="${escapeHtml(order.id)}"
+              data-status="${escapeHtml(st)}"
+              class="px-2 py-1 rounded-md border text-[11px] leading-tight transition cursor-pointer ${style}">
+              ${escapeHtml(st)}
+            </button>`;
+          }).join('')}
+        </div>`;
+      }
+
+      function renderOrdersTable() {
+        const tbody = document.getElementById('orders-table-tbody');
+        const filtered = getFilteredSortedOrders();
+
+        // Update bottom batch mailto link
+        const batchSubject = encodeURIComponent(`PlanBraid Supply Material Orders Export (${filtered.length} orders)`);
+        const batchBody = encodeURIComponent(filtered.map(formatOrderSummary).join('\n\n========================================\n\n'));
+        document.getElementById('orders-batch-mailto').href = `mailto:?subject=${batchSubject}&body=${batchBody}`;
+
+        if (filtered.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="7" class="py-10 px-4 text-center text-xs text-slate-500">
+                No material orders match your current filter.
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        tbody.innerHTML = filtered.map(order => {
+          const totalUnits = order.items.reduce((sum, i) => sum + i.qty, 0);
+          let prioBadge = `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">Routine</span>`;
+          if (order.priority === 'Emergency') {
+            prioBadge = `<span class="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-rose-100 text-rose-700 border border-rose-200">Emergency</span>`;
+          } else if (order.priority === 'Urgent') {
+            prioBadge = `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">Urgent</span>`;
+          }
+
+          return `
+            <tr class="hover:bg-slate-50/80 transition">
+              <td class="py-3 px-3 align-top whitespace-nowrap">
+                <button type="button" data-action="open-order-detail" data-order-id="${escapeHtml(order.id)}"
+                  class="font-mono text-xs font-extrabold text-slate-900 hover:text-amber-600 underline decoration-slate-300">
+                  ${escapeHtml(order.id)}
+                </button>
+                <div class="text-[11px] text-slate-400 mt-0.5">${new Date(order.createdAt).toLocaleDateString()}</div>
+              </td>
+
+              <td class="py-3 px-3 align-top">
+                <div class="font-bold text-slate-900 text-xs">${escapeHtml(order.jobSite)}</div>
+                <div class="text-[11px] font-mono text-slate-500">${escapeHtml(order.woNumber)} &bull; ${escapeHtml(order.deliveryMethod)}</div>
+              </td>
+
+              <td class="py-3 px-3 align-top whitespace-nowrap">
+                <div class="text-xs font-bold text-slate-800">${escapeHtml(order.techName)}</div>
+                <div class="text-[11px] text-slate-500">Need: ${escapeHtml(order.dateNeeded)}</div>
+              </td>
+
+              <td class="py-3 px-3 align-top whitespace-nowrap">${prioBadge}</td>
+
+              <td class="py-3 px-3 align-top text-center whitespace-nowrap tabular-nums">
+                <span class="font-extrabold text-xs text-slate-900">${order.items.length}</span> <span class="text-[11px] text-slate-500">lines</span>
+                <div class="text-[11px] text-slate-500">(${totalUnits} qty)</div>
+              </td>
+
+              <!-- Status Buttons Strictly Inside Each Row's Status Column -->
+              <td class="py-3 px-3 align-top">
+                ${renderStatusButtonsGroup(order)}
+              </td>
+
+              <td class="py-3 px-3 align-top text-right whitespace-nowrap">
+                <div class="inline-flex items-center gap-1.5">
+                  <button type="button" data-action="open-order-detail" data-order-id="${escapeHtml(order.id)}"
+                    class="min-h-[32px] px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition">
+                    View / Print
+                  </button>
+                  ${session.role !== 'technician' ? `<button type="button" data-action="delete-order" data-order-id="${escapeHtml(order.id)}"
+                    class="min-h-[32px] px-2 py-1 rounded-lg bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 text-xs font-bold transition" title="Delete order">
+                    &times;
+                  </button>` : ''}
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // -----------------------------------------------------------------------
+      // VIEW 3: CATALOG MANAGER TABLE
+      // -----------------------------------------------------------------------
+      function renderCatalogManagerTable() {
+        const tbody = document.getElementById('catalog-manager-tbody');
+        const query = (document.getElementById('mgr-search').value || '').trim().toLowerCase();
+        const catFilter = document.getElementById('mgr-category-filter').value;
+        const freqOnly = document.getElementById('mgr-frequent-only').checked;
+
+        const filtered = state.catalog.filter(item => {
+          const matchCat = catFilter === 'All' || item.category === catFilter;
+          const matchFreq = !freqOnly || item.isFrequent;
+          const matchQuery = !query ||
+            item.partNumber.toLowerCase().includes(query) ||
+            item.name.toLowerCase().includes(query) ||
+            (item.spec && item.spec.toLowerCase().includes(query));
+          return matchCat && matchFreq && matchQuery;
+        });
+
+        if (filtered.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="7" class="py-10 px-4 text-center text-xs text-slate-500">
+                No catalog items match your filters.
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        tbody.innerHTML = filtered.map(item => {
+          const catOptions = state.categories.map(c =>
+            `<option value="${escapeHtml(c)}" ${item.category === c ? 'selected' : ''}>${escapeHtml(c)}</option>`
+          ).join('');
+          const unitOptions = state.units.map(u =>
+            `<option value="${escapeHtml(u)}" ${item.unit === u ? 'selected' : ''}>${escapeHtml(u)}</option>`
+          ).join('');
+
+          return `
+            <tr class="hover:bg-slate-50 transition">
+              <td class="py-2.5 px-3 w-16 min-w-[64px] text-center">${renderThumb(item.image, item.name, 'w-11 h-11')}</td>
+              <td class="py-2.5 px-3 w-36 min-w-[135px] font-mono text-xs font-bold text-slate-800">${escapeHtml(item.partNumber)}</td>
+              <td class="py-2.5 px-3 min-w-[230px]">
+                <div class="font-bold text-slate-900 text-xs">${escapeHtml(item.name)}</div>
+                <div class="text-[11px] text-slate-500">${escapeHtml(item.spec || '')}</div>
+              </td>
+              <td class="py-2.5 px-3 w-44 min-w-[165px]">
+                <select data-action="inline-cat-category" data-id="${escapeHtml(item.id)}"
+                  class="w-full h-8 px-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800">
+                  ${catOptions}
+                </select>
+              </td>
+              <td class="py-2.5 px-3 w-28 min-w-[100px]">
+                <select data-action="inline-cat-unit" data-id="${escapeHtml(item.id)}"
+                  class="w-full h-8 px-2 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-800">
+                  ${unitOptions}
+                </select>
+              </td>
+              <td class="py-2.5 px-3 w-36 min-w-[135px] text-center">
+                <button type="button" data-action="toggle-cat-frequent" data-id="${escapeHtml(item.id)}"
+                  class="px-2.5 py-1 rounded-full text-[11px] font-extrabold border transition ${
+                    item.isFrequent
+                      ? 'bg-amber-100 text-amber-800 border-amber-300'
+                      : 'bg-slate-100 text-slate-400 border-slate-200 hover:text-slate-700'
+                  }">
+                  ${item.isFrequent ? '★ Frequent' : '☆ Standard'}
+                </button>
+              </td>
+              <td class="py-2.5 px-3 w-32 min-w-[125px] text-right whitespace-nowrap">
+                <div class="inline-flex items-center gap-1.5">
+                  <button type="button" data-action="open-catalog-form" data-id="${escapeHtml(item.id)}"
+                    class="min-h-[32px] px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold">
+                    Edit
+                  </button>
+                  <button type="button" data-action="delete-catalog-item" data-id="${escapeHtml(item.id)}"
+                    class="min-h-[32px] px-2 py-1 rounded-lg bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 text-xs font-bold">
+                    Del
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // -----------------------------------------------------------------------
+      // VIEW 4: SETTINGS (CATEGORY MANAGER & UNITS MANAGER)
+      // -----------------------------------------------------------------------
+      function renderSettingsTables() {
+        const catTbody = document.getElementById('settings-categories-tbody');
+        catTbody.innerHTML = state.categories.map((cat, idx) => {
+          const itemCount = state.catalog.filter(i => i.category === cat).length;
+          return `
+            <tr class="hover:bg-slate-50">
+              <td class="py-2 px-3 font-bold text-slate-800">${escapeHtml(cat)}</td>
+              <td class="py-2 px-3 text-center tabular-nums text-slate-500">${itemCount}</td>
+              <td class="py-2 px-3 text-right whitespace-nowrap">
+                <div class="inline-flex items-center gap-1">
+                  <button type="button" data-action="move-category" data-idx="${idx}" data-dir="-1" ${idx === 0 ? 'disabled' : ''}
+                    class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-700 font-bold">&uarr;</button>
+                  <button type="button" data-action="move-category" data-idx="${idx}" data-dir="1" ${idx === state.categories.length - 1 ? 'disabled' : ''}
+                    class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-700 font-bold">&darr;</button>
+                  <button type="button" data-action="delete-category" data-idx="${idx}"
+                    class="px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold">&times;</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        const unitsTbody = document.getElementById('settings-units-tbody');
+        unitsTbody.innerHTML = state.units.map((unit, idx) => {
+          const isDefault = state.defaultUnit === unit;
+          return `
+            <tr class="hover:bg-slate-50">
+              <td class="py-2 px-3 font-mono font-bold text-slate-800">${escapeHtml(unit)}</td>
+              <td class="py-2 px-3 text-center">
+                <button type="button" data-action="set-default-unit" data-unit="${escapeHtml(unit)}"
+                  class="px-2 py-0.5 rounded-full text-[11px] font-extrabold border ${
+                    isDefault
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-slate-100 text-slate-500 border-slate-200 hover:text-slate-800'
+                  }">
+                  ${isDefault ? 'Default' : 'Set Default'}
+                </button>
+              </td>
+              <td class="py-2 px-3 text-right">
+                <button type="button" data-action="delete-unit" data-idx="${idx}"
+                  class="px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold">&times;</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // -----------------------------------------------------------------------
+      // CATALOG PICKER MODAL
+      // -----------------------------------------------------------------------
+      function renderCatalogPickerTable() {
+        const query = (document.getElementById('picker-search').value || '').trim().toLowerCase();
+        const catFilter = document.getElementById('picker-category').value;
+        const tbody = document.getElementById('picker-table-tbody');
+
+        const filtered = state.catalog.filter(item => {
+          const matchCat = catFilter === 'All' || item.category === catFilter;
+          const matchQuery = !query ||
+            item.partNumber.toLowerCase().includes(query) ||
+            item.name.toLowerCase().includes(query) ||
+            (item.spec && item.spec.toLowerCase().includes(query));
+          return matchCat && matchQuery;
+        });
+
+        tbody.innerHTML = filtered.map(item => `
+          <tr class="hover:bg-amber-50/40 transition">
+            <td class="py-2 px-3 w-10 min-w-[40px] text-center">
+              <input type="checkbox" value="${escapeHtml(item.id)}" class="picker-row-checkbox w-4 h-4 rounded text-amber-500 focus:ring-amber-500" />
+            </td>
+            <td class="py-2 px-3 w-14 min-w-[56px] text-center">${renderThumb(item.image, item.name, 'w-9 h-9')}</td>
+            <td class="py-2 px-3 w-36 min-w-[130px] font-mono text-xs font-bold text-slate-700">${escapeHtml(item.partNumber)}</td>
+            <td class="py-2 px-3 min-w-[220px]">
+              <div class="font-bold text-slate-900 text-xs">${escapeHtml(item.name)}</div>
+              ${item.spec ? `<div class="text-[11px] text-slate-500">${escapeHtml(item.spec)}</div>` : ''}
+            </td>
+            <td class="py-2 px-3 w-40 min-w-[150px] text-xs font-semibold text-slate-600">${escapeHtml(item.category)}</td>
+            <td class="py-2 px-3 w-20 min-w-[70px] text-center text-xs font-bold text-slate-600">${escapeHtml(item.unit)}</td>
+            <td class="py-2 px-3 w-24 min-w-[85px] text-center">
+              <input type="number" id="picker-qty-${escapeHtml(item.id)}" value="1" min="1"
+                class="w-16 h-8 text-center rounded-lg border border-slate-300 bg-white text-xs font-extrabold tabular-nums" />
+            </td>
+            <td class="py-2 px-3 w-28 min-w-[105px] text-right">
+              <button type="button" data-action="quick-add-picker" data-id="${escapeHtml(item.id)}"
+                class="min-h-[32px] px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold">
+                + Add
+              </button>
+            </td>
+          </tr>
+        `).join('');
+
+        updatePickerCheckedCount();
+      }
+
+      function updatePickerCheckedCount() {
+        const count = document.querySelectorAll('.picker-row-checkbox:checked').length;
+        document.getElementById('picker-checked-count').textContent = count;
+      }
+
+      // -----------------------------------------------------------------------
+      // ORDER DETAIL & PICK TICKET MODAL
+      // -----------------------------------------------------------------------
+      function openOrderDetailModal(orderId, justSubmitted = false) {
+        const order = state.orders.find(o => o.id === orderId);
+        if (!order) return;
+
+        state.activeDetailOrderId = orderId;
+        document.getElementById('detail-modal-subtitle').textContent = justSubmitted
+          ? 'Order Submitted to Office'
+          : 'Material Order Details';
+        document.getElementById('detail-modal-title').textContent = order.id;
+
+        const summaryText = formatOrderSummary(order);
+        const mailSubject = encodeURIComponent(`[${order.priority}] Material Order ${order.id} - ${order.jobSite}`);
+        const mailBody = encodeURIComponent(summaryText);
+        document.getElementById('detail-mailto-link').href = `mailto:?subject=${mailSubject}&body=${mailBody}`;
+
+        const body = document.getElementById('detail-modal-body');
+        body.innerHTML = `
+          <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+            <span class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500">${session.role === 'technician' ? 'Order Status' : 'Order Status (Click to Update)'}</span>
+            ${renderStatusButtonsGroup(order)}
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
+            <div>
+              <span class="text-slate-400 font-bold uppercase block">Technician</span>
+              <span class="text-slate-900 font-extrabold">${escapeHtml(order.techName)}</span>
+            </div>
+            <div>
+              <span class="text-slate-400 font-bold uppercase block">Job / PO #</span>
+              <span class="text-slate-900 font-mono font-extrabold">${escapeHtml(order.woNumber)}</span>
+            </div>
+            <div>
+              <span class="text-slate-400 font-bold uppercase block">Needed By / Priority</span>
+              <span class="text-slate-900 font-extrabold">${escapeHtml(order.dateNeeded)} &bull; ${escapeHtml(order.priority)}</span>
+            </div>
+            <div class="sm:col-span-2">
+              <span class="text-slate-400 font-bold uppercase block">Job / Site</span>
+              <span class="text-slate-900 font-bold">${escapeHtml(order.jobSite)}</span>
+            </div>
+            <div>
+              <span class="text-slate-400 font-bold uppercase block">Delivery</span>
+              <span class="text-slate-900 font-bold">${escapeHtml(order.deliveryMethod)}</span>
+            </div>
+          </div>
+
+          <div class="border border-slate-200 rounded-xl overflow-hidden">
+            <table class="w-full table-auto text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-100 border-b border-slate-200 text-[11px] font-extrabold uppercase text-slate-600">
+                  <th class="py-2 px-3 w-12 text-center">Pic</th>
+                  <th class="py-2 px-3 w-32">Part #</th>
+                  <th class="py-2 px-3">Item Description</th>
+                  <th class="py-2 px-3 w-16 text-center">Unit</th>
+                  <th class="py-2 px-3 w-16 text-right">Qty</th>
+                  <th class="py-2 px-3">Line Notes</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200 text-xs">
+                ${order.items.map(item => `
+                  <tr>
+                    <td class="py-2 px-3 text-center">${renderThumb(item.image, item.name, 'w-8 h-8')}</td>
+                    <td class="py-2 px-3 font-mono font-bold text-slate-700">${escapeHtml(item.partNumber)}</td>
+                    <td class="py-2 px-3 font-bold text-slate-900">${escapeHtml(item.name)}</td>
+                    <td class="py-2 px-3 text-center text-slate-600">${escapeHtml(item.unit)}</td>
+                    <td class="py-2 px-3 text-right font-extrabold tabular-nums">${item.qty}</td>
+                    <td class="py-2 px-3 text-slate-600">${escapeHtml(item.notes || '—')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-extrabold uppercase text-slate-500 mb-1">Text Summary</label>
+            <textarea id="detail-formatted-text" readonly rows="5" class="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 font-mono text-xs text-slate-800">${escapeHtml(summaryText)}</textarea>
+          </div>
+        `;
+
+        const modal = document.getElementById('order-detail-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+
+      // -----------------------------------------------------------------------
+      // CENTRALIZED EVENT DELEGATION
+      // -----------------------------------------------------------------------
+      function bindEvents() {
+        document.addEventListener('click', async (e) => {
+          if (saving) return;
+          const btn = e.target.closest('[data-action]');
+          if (!btn) return;
+          const action = btn.getAttribute('data-action');
+
+          if (action === 'switch-view') {
+            const view = btn.getAttribute('data-view');
+            switchView(view);
+          }
+
+          if (action === 'add-blank-row') {
+            state.draftLines.push(createBlankLine());
+            saveDraft();
+            renderOrderLinesTable();
+          }
+
+          if (action === 'clear-draft-order') {
+            state.draftLines = [createBlankLine()];
+            setPendingOrder(null);
+            saveDraft();
+            renderOrderLinesTable();
+            renderFrequentItemsTable();
+            showToast('Cleared active order table', 'info');
+          }
+
+          if (action === 'step-qty') {
+            const lineId = btn.getAttribute('data-line-id');
+            const delta = parseInt(btn.getAttribute('data-delta'), 10) || 0;
+            const line = state.draftLines.find(l => l.id === lineId);
+            if (line) {
+              line.qty = Math.max(1, (parseInt(line.qty, 10) || 1) + delta);
+              saveDraft();
+              renderOrderLinesTable();
+            }
+          }
+
+          if (action === 'remove-line') {
+            const lineId = btn.getAttribute('data-line-id');
+            state.draftLines = state.draftLines.filter(l => l.id !== lineId);
+            saveDraft();
+            renderOrderLinesTable();
+            renderFrequentItemsTable();
+          }
+
+          if (action === 'select-catalog-suggestion') {
+            const list = document.getElementById('catalog-suggestions');
+            const line = state.draftLines.find(l => l.id === list.dataset.lineId);
+            const item = state.catalog.find(c => c.id === btn.getAttribute('data-id'));
+            if (line && item) {
+              Object.assign(line, { partNumber: item.partNumber, name: item.name, unit: item.unit, image: item.image || '' });
+              saveDraft();
+              renderOrderLinesTable();
+              renderFrequentItemsTable();
+            }
+          }
+
+          if (action === 'dismiss-catalog-notice') {
+            try {
+              const result = await request('notification-read', { id: Number(btn.getAttribute('data-id')) });
+              state.notifications = result.notifications;
+              renderCatalogNotices();
+            } catch (error) {
+              showToast(`Could not dismiss notification: ${error.message}`, 'error');
+            }
+          }
+
+          if (action === 'quick-add-frequent') {
+            const catId = btn.getAttribute('data-id');
+            const item = state.catalog.find(c => c.id === catId);
+            if (item) {
+              const qtyEl = document.getElementById(`freq-qty-${catId}`);
+              const qty = qtyEl ? parseInt(qtyEl.value, 10) || 1 : 1;
+              addCatalogItemToOrder(item, qty);
+              if (qtyEl) qtyEl.value = 1;
+            }
+          }
+
+          if (action === 'open-catalog-picker') {
+            document.getElementById('picker-search').value = '';
+            document.getElementById('picker-category').value = 'All';
+            document.getElementById('picker-select-all').checked = false;
+            renderCatalogPickerTable();
+            const m = document.getElementById('catalog-picker-modal');
+            m.classList.remove('hidden');
+            m.classList.add('flex');
+          }
+
+          if (action === 'close-catalog-picker') {
+            const m = document.getElementById('catalog-picker-modal');
+            m.classList.add('hidden');
+            m.classList.remove('flex');
+          }
+
+          if (action === 'quick-add-picker') {
+            const catId = btn.getAttribute('data-id');
+            const item = state.catalog.find(c => c.id === catId);
+            if (item) {
+              const qtyEl = document.getElementById(`picker-qty-${catId}`);
+              const qty = qtyEl ? parseInt(qtyEl.value, 10) || 1 : 1;
+              addCatalogItemToOrder(item, qty);
+              if (qtyEl) qtyEl.value = 1;
+            }
+          }
+
+          if (action === 'add-selected-picker') {
+            const checked = Array.from(document.querySelectorAll('.picker-row-checkbox:checked'));
+            if (checked.length === 0) {
+              showToast('Select at least one checkbox first.', 'error');
+              return;
+            }
+            checked.forEach(cb => {
+              const item = state.catalog.find(c => c.id === cb.value);
+              if (item) {
+                const qtyEl = document.getElementById(`picker-qty-${cb.value}`);
+                const qty = qtyEl ? parseInt(qtyEl.value, 10) || 1 : 1;
+                addCatalogItemToOrder(item, qty);
+              }
+            });
+            const m = document.getElementById('catalog-picker-modal');
+            m.classList.add('hidden');
+            m.classList.remove('flex');
+          }
+
+          if (action === 'submit-order') {
+            await handleSubmitOrder();
+          }
+
+          if (action === 'filter-orders-status') {
+            state.ordersStatusFilter = btn.getAttribute('data-status') || 'All';
+            renderOrdersFilterTabs();
+            renderOrdersTable();
+          }
+
+          if (action === 'set-order-status') {
+            const orderId = btn.getAttribute('data-order-id');
+            const newStatus = btn.getAttribute('data-status');
+            const order = state.orders.find(o => o.id === orderId);
+            if (order && newStatus) {
+              order.status = newStatus;
+              if (!(await persistAll())) return;
+              renderOrdersFilterTabs();
+              renderOrdersTable();
+              if (state.activeDetailOrderId === orderId) {
+                const detailModal = document.getElementById('order-detail-modal');
+                if (!detailModal.classList.contains('hidden')) {
+                  openOrderDetailModal(orderId, false);
+                }
+              }
+              showToast(`${orderId} marked "${newStatus}"`, 'success');
+            }
+          }
+
+          if (action === 'open-order-detail') {
+            const orderId = btn.getAttribute('data-order-id');
+            openOrderDetailModal(orderId, false);
+          }
+
+          if (action === 'close-order-detail') {
+            const m = document.getElementById('order-detail-modal');
+            m.classList.add('hidden');
+            m.classList.remove('flex');
+            state.activeDetailOrderId = null;
+          }
+
+          if (action === 'delete-order') {
+            const orderId = btn.getAttribute('data-order-id');
+            if (!confirm(`Delete order ${orderId}?`)) return;
+            state.orders = state.orders.filter(o => o.id !== orderId);
+            if (!(await persistAll())) return;
+            renderOrdersFilterTabs();
+            renderOrdersTable();
+            showToast(`Deleted order ${orderId}`, 'info');
+          }
+
+          if (action === 'copy-detail-summary') {
+            const ta = document.getElementById('detail-formatted-text');
+            if (ta) {
+              ta.select();
+              document.execCommand('copy');
+              showToast('Order summary copied to clipboard', 'success');
+            }
+          }
+
+          if (action === 'download-detail-csv') {
+            const order = state.orders.find(o => o.id === state.activeDetailOrderId);
+            if (order) downloadFile(ordersToCSV([order]), `${order.id}.csv`, 'text/csv');
+          }
+
+          if (action === 'print-detail-ticket') {
+            if (state.activeDetailOrderId) printPickTicket(state.activeDetailOrderId);
+          }
+
+          if (action === 'export-filtered-csv') {
+            const list = getFilteredSortedOrders();
+            if (list.length === 0) return showToast('No filtered orders to export', 'error');
+            downloadFile(ordersToCSV(list), `PlanBraid_Supply_Filtered_Orders.csv`, 'text/csv');
+            showToast(`Exported ${list.length} filtered orders`, 'success');
+          }
+
+          if (action === 'export-all-csv') {
+            if (state.orders.length === 0) return showToast('No orders to export', 'error');
+            downloadFile(ordersToCSV(state.orders), `PlanBraid_Supply_All_Orders.csv`, 'text/csv');
+            showToast(`Exported all ${state.orders.length} orders`, 'success');
+          }
+
+          if (action === 'export-json-backup') {
+            const payload = {
+              exportedAt: new Date().toISOString(),
+              categories: state.categories,
+              units: state.units,
+              defaultUnit: state.defaultUnit,
+              catalog: state.catalog,
+              orders: state.orders
+            };
+            downloadFile(JSON.stringify(payload, null, 2), `PlanBraid_Supply_Export.json`, 'application/json');
+            showToast('Exported JSON data. This does not include accounts or order ownership.', 'info');
+          }
+
+          if (action === 'copy-orders-summary') {
+            const list = getFilteredSortedOrders();
+            if (list.length === 0) return showToast('No orders to copy', 'error');
+            const text = list.map(formatOrderSummary).join('\n\n----------------------------------------\n\n');
+            copyTextToClipboard(text);
+            showToast(`Copied ${list.length} order summaries to clipboard`, 'success');
+          }
+
+          if (action === 'toggle-cat-frequent') {
+            const id = btn.getAttribute('data-id');
+            const item = state.catalog.find(c => c.id === id);
+            if (item) {
+              item.isFrequent = !item.isFrequent;
+              if (!(await persistAll())) return;
+              renderCatalogManagerTable();
+              renderFrequentItemsTable();
+            }
+          }
+
+          if (action === 'open-catalog-form') {
+            const id = btn.getAttribute('data-id');
+            openCatalogFormModal(id || null);
+          }
+
+          if (action === 'close-catalog-form') {
+            const m = document.getElementById('catalog-form-modal');
+            m.classList.add('hidden');
+            m.classList.remove('flex');
+          }
+
+          if (action === 'clear-cat-image') {
+            state.tempEditCatalogImage = '';
+            document.getElementById('edit-cat-file').value = '';
+            document.getElementById('edit-cat-image-url').value = '';
+            updateCatalogFormPreview();
+          }
+
+          if (action === 'save-catalog-item') {
+            await saveCatalogFormItem();
+          }
+
+          if (action === 'delete-catalog-item') {
+            const id = btn.getAttribute('data-id');
+            if (!confirm('Delete this catalog item?')) return;
+            state.catalog = state.catalog.filter(c => c.id !== id);
+            if (!(await persistAll())) return;
+            renderCatalogManagerTable();
+            renderFrequentItemsTable();
+            renderOrderLinesTable();
+            showToast('Deleted catalog item', 'info');
+          }
+
+          if (action === 'add-category') {
+            const inp = document.getElementById('new-category-input');
+            const val = inp.value.trim();
+            if (!val) return;
+            if (state.categories.some(c => c.toLowerCase() === val.toLowerCase())) {
+              return showToast('Category already exists', 'error');
+            }
+            state.categories.push(val);
+            inp.value = '';
+            if (!(await persistAll())) return;
+            syncCategoryAndUnitDropdowns();
+            renderSettingsTables();
+            renderCatalogManagerTable();
+            showToast(`Added category "${val}"`, 'success');
+          }
+
+          if (action === 'move-category') {
+            const idx = parseInt(btn.getAttribute('data-idx'), 10);
+            const dir = parseInt(btn.getAttribute('data-dir'), 10);
+            const target = idx + dir;
+            if (target >= 0 && target < state.categories.length) {
+              const temp = state.categories[idx];
+              state.categories[idx] = state.categories[target];
+              state.categories[target] = temp;
+              if (!(await persistAll())) return;
+              syncCategoryAndUnitDropdowns();
+              renderSettingsTables();
+            }
+          }
+
+          if (action === 'delete-category') {
+            const idx = parseInt(btn.getAttribute('data-idx'), 10);
+            if (state.categories.length <= 1) return showToast('At least one category is required', 'error');
+            if (state.catalog.some(item => item.category === state.categories[idx])) return showToast('Move catalog items to another category first.', 'error');
+            const removed = state.categories.splice(idx, 1)[0];
+            if (!(await persistAll())) return;
+            syncCategoryAndUnitDropdowns();
+            renderSettingsTables();
+            showToast(`Deleted category "${removed}"`, 'info');
+          }
+
+          if (action === 'add-unit') {
+            const inp = document.getElementById('new-unit-input');
+            const val = inp.value.trim();
+            if (!val) return;
+            if (state.units.some(u => u.toLowerCase() === val.toLowerCase())) {
+              return showToast('Unit already exists', 'error');
+            }
+            state.units.push(val);
+            inp.value = '';
+            if (!(await persistAll())) return;
+            syncCategoryAndUnitDropdowns();
+            renderSettingsTables();
+            renderOrderLinesTable();
+            renderCatalogManagerTable();
+            showToast(`Added unit "${val}"`, 'success');
+          }
+
+          if (action === 'set-default-unit') {
+            const unit = btn.getAttribute('data-unit');
+            if (unit) {
+              state.defaultUnit = unit;
+              if (!(await persistAll())) return;
+              renderSettingsTables();
+              showToast(`Default unit set to "${unit}"`, 'success');
+            }
+          }
+
+          if (action === 'delete-unit') {
+            const idx = parseInt(btn.getAttribute('data-idx'), 10);
+            if (state.units.length <= 1) return showToast('At least one unit is required', 'error');
+            if (state.catalog.some(item => item.unit === state.units[idx])) return showToast('Move catalog items to another unit first.', 'error');
+            const removed = state.units.splice(idx, 1)[0];
+            if (state.defaultUnit === removed) state.defaultUnit = state.units[0];
+            if (!(await persistAll())) return;
+            syncCategoryAndUnitDropdowns();
+            renderSettingsTables();
+            renderOrderLinesTable();
+            showToast(`Deleted unit "${removed}"`, 'info');
+          }
+        });
+
+        // Inline input & select changes inside Order Lines Table & Catalog Manager
+        document.addEventListener('input', (e) => {
+          if (saving) return;
+          const target = e.target;
+
+          // Active Order Table inline inputs
+          if (target.hasAttribute('data-line-id') && target.hasAttribute('data-field')) {
+            const lineId = target.getAttribute('data-line-id');
+            const field = target.getAttribute('data-field');
+            const line = state.draftLines.find(l => l.id === lineId);
+            if (line) {
+              if (field === 'qty') {
+                line.qty = Math.max(1, parseInt(target.value, 10) || 1);
+              } else {
+                line[field] = target.value;
+              }
+              saveDraft();
+              if (field === 'partNumber' || field === 'name') {
+                updateLineCatalogStatus(line, target.closest('tr'));
+                showCatalogSuggestions(target);
+              }
+              const totalQty = state.draftLines.reduce((sum, l) => sum + (parseInt(l.qty, 10) || 0), 0);
+              document.getElementById('order-line-count').textContent = state.draftLines.length;
+              document.getElementById('order-unit-count').textContent = totalQty;
+            }
+          }
+
+          if (target.id === 'orders-search') renderOrdersTable();
+          if (target.id === 'mgr-search') renderCatalogManagerTable();
+          if (target.id === 'picker-search') renderCatalogPickerTable();
+          if (target.id === 'edit-cat-image-url') {
+            state.tempEditCatalogImage = target.value.trim();
+            updateCatalogFormPreview();
+          }
+        });
+
+        document.addEventListener('keydown', (e) => {
+          const input = e.target;
+          if (!input.matches('input[data-line-id][data-field="partNumber"], input[data-line-id][data-field="name"]')) return;
+          const list = document.getElementById('catalog-suggestions');
+          if (e.key === 'Escape') {
+            hideCatalogSuggestions();
+            input.setAttribute('aria-expanded', 'false');
+            return;
+          }
+          if (list.hidden || list.dataset.lineId !== input.dataset.lineId) return;
+          const options = Array.from(list.querySelectorAll('[role="option"]'));
+          let selected = options.findIndex(option => option.getAttribute('aria-selected') === 'true');
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            selected = e.key === 'ArrowDown' ? Math.min(selected + 1, options.length - 1) : Math.max(selected - 1, 0);
+            options.forEach((option, i) => option.setAttribute('aria-selected', String(i === selected)));
+            input.setAttribute('aria-activedescendant', options[selected].id);
+            options[selected].scrollIntoView({ block: 'nearest' });
+          } else if (e.key === 'Enter' && selected >= 0) {
+            e.preventDefault();
+            options[selected].click();
+          }
+        });
+        document.getElementById('catalog-suggestions').addEventListener('mousedown', e => e.preventDefault());
+        document.addEventListener('focusout', e => {
+          if (e.target.matches('input[data-line-id][data-field="partNumber"], input[data-line-id][data-field="name"]')) {
+            e.target.setAttribute('aria-expanded', 'false');
+            setTimeout(() => {
+              if (!document.getElementById('catalog-suggestions').contains(document.activeElement) &&
+                  !document.activeElement.matches('input[aria-controls="catalog-suggestions"]')) hideCatalogSuggestions();
+            }, 200);
+          }
+        });
+        window.addEventListener('resize', hideCatalogSuggestions);
+        document.addEventListener('scroll', e => {
+          if (!document.getElementById('catalog-suggestions').contains(e.target)) hideCatalogSuggestions();
+        }, true);
+
+        document.addEventListener('change', async (e) => {
+          if (saving) return;
+          const target = e.target;
+
+          if (target.hasAttribute('data-line-id') && target.getAttribute('data-field') === 'unit') {
+            const lineId = target.getAttribute('data-line-id');
+            const line = state.draftLines.find(l => l.id === lineId);
+            if (line) {
+              line.unit = target.value;
+              saveDraft();
+            }
+          }
+
+          if (target.getAttribute('data-action') === 'inline-cat-category') {
+            const item = state.catalog.find(c => c.id === target.getAttribute('data-id'));
+            if (item) {
+              item.category = target.value;
+              if (!(await persistAll())) return;
+              renderFrequentItemsTable();
+            }
+          }
+
+          if (target.getAttribute('data-action') === 'inline-cat-unit') {
+            const item = state.catalog.find(c => c.id === target.getAttribute('data-id'));
+            if (item) {
+              item.unit = target.value;
+              if (!(await persistAll())) return;
+              renderFrequentItemsTable();
+            }
+          }
+
+          if (target.id === 'orders-sort') renderOrdersTable();
+          if (target.id === 'mgr-category-filter' || target.id === 'mgr-frequent-only') renderCatalogManagerTable();
+          if (target.id === 'picker-category') renderCatalogPickerTable();
+
+          if (target.id === 'picker-select-all') {
+            document.querySelectorAll('.picker-row-checkbox').forEach(cb => { cb.checked = target.checked; });
+            updatePickerCheckedCount();
+          }
+
+          if (target.classList.contains('picker-row-checkbox')) {
+            updatePickerCheckedCount();
+          }
+
+          if (target.id === 'edit-cat-file') {
+            handleCatalogImageFile(e);
+          }
+
+        });
+      }
+
+      // -----------------------------------------------------------------------
+      // VIEW SWITCHING & SUBMIT ORDER
+      // -----------------------------------------------------------------------
+      function switchView(viewName) {
+        state.activeView = viewName;
+        ['new-order', 'orders', 'catalog', 'settings'].forEach(v => {
+          const sec = document.getElementById(`view-${v}`);
+          const btn = document.getElementById(`nav-${v}`);
+          if (v === viewName) {
+            sec.classList.remove('hidden');
+            btn.className = 'min-h-[38px] px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 bg-amber-500 text-slate-950 shadow';
+          } else {
+            sec.classList.add('hidden');
+            btn.className = 'min-h-[38px] px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-800';
+          }
+          if ((v === 'settings' && session.role !== 'admin') || (v === 'catalog' && session.role === 'technician')) {
+            btn.classList.add('hidden');
+          }
+        });
+
+        if (viewName === 'orders') {
+          renderOrdersFilterTabs();
+          renderOrdersTable();
+        } else if (viewName === 'catalog') {
+          renderCatalogManagerTable();
+        } else if (viewName === 'settings') {
+          renderSettingsTables();
+        }
+      }
+
+      async function handleSubmitOrder() {
+        const jobSite = document.getElementById('job-site').value.trim();
+        const woNumber = document.getElementById('wo-number').value.trim();
+        const techName = document.getElementById('tech-name').value.trim();
+        const dateNeeded = document.getElementById('date-needed').value;
+        const priority = document.getElementById('priority-level').value;
+        const deliveryMethod = document.getElementById('delivery-method').value;
+        const orderNotes = document.getElementById('order-notes').value.trim();
+
+        const validLines = state.draftLines.filter(l => l.name.trim() || l.partNumber.trim());
+
+        if (!jobSite) { showToast('Enter Job Name / Site Address.', 'error'); return; }
+        if (!woNumber) { showToast('Enter Job / PO #.', 'error'); return; }
+        if (!techName) { showToast('Enter Technician Name.', 'error'); return; }
+        if (!dateNeeded) { showToast('Enter a needed-by date.', 'error'); return; }
+        if (validLines.length === 0) { showToast('Add at least one item to the Active Material Order Table.', 'error'); return; }
+
+        const missingDesc = validLines.find(l => !l.name.trim());
+        if (missingDesc) { showToast('Every item row requires an Item Description.', 'error'); return; }
+        if (pendingOrderId && state.orders.some(order => order.id === pendingOrderId)) {
+          showToast('This draft was already submitted. Review the order, then clear the draft before starting another.', 'error');
+          openOrderDetailModal(pendingOrderId, false);
+          return;
+        }
+
+        try {
+          localStorage.setItem(STORAGE_KEYS.TECH_NAME, techName);
+        } catch (e) {
+          showToast('Could not remember your name in this browser.', 'error');
+        }
+        const orderId = pendingOrderId || `ORD-${new Date().getFullYear()}-${Array.from(crypto.getRandomValues(new Uint8Array(8)), n => n.toString(16).padStart(2, '0')).join('')}`;
+        setPendingOrder(orderId);
+
+        const newOrder = {
+          id: orderId,
+          createdAt: new Date().toISOString(),
+          techName,
+          jobSite,
+          woNumber,
+          dateNeeded,
+          priority,
+          deliveryMethod,
+          status: 'Submitted',
+          orderNotes,
+          items: validLines.map(l => ({
+            partNumber: l.partNumber.trim() || 'CUSTOM',
+            partMissing: !l.partNumber.trim(),
+            name: l.name.trim(),
+            unit: l.unit || state.defaultUnit || 'ea',
+            qty: Math.max(1, parseInt(l.qty, 10) || 1),
+            notes: l.notes.trim(),
+            image: l.image || ''
+          }))
+        };
+
+        state.orders.unshift(newOrder);
+        if (!(await persistAll()) && !state.orders.some(order => order.id === orderId)) {
+          showToast('Submission could not be confirmed. Refresh and check Orders before retrying.', 'error');
+          return;
+        }
+        setPendingOrder(null);
+        state.draftLines = [createBlankLine()];
+        saveDraft();
+
+        document.getElementById('job-site').value = '';
+        document.getElementById('wo-number').value = '';
+        document.getElementById('order-notes').value = '';
+
+        renderAll();
+        showToast(`Order ${orderId} submitted to office!`, 'success');
+        openOrderDetailModal(orderId, true);
+      }
+
+      // -----------------------------------------------------------------------
+      // CATALOG FORM & CANVAS IMAGE COMPRESSION
+      // -----------------------------------------------------------------------
+      function openCatalogFormModal(catId) {
+        const title = document.getElementById('catalog-form-title');
+        document.getElementById('edit-cat-file').value = '';
+
+        if (catId) {
+          const item = state.catalog.find(c => c.id === catId);
+          if (!item) return;
+          title.textContent = 'Edit Catalog Item';
+          document.getElementById('edit-cat-id').value = item.id;
+          document.getElementById('edit-cat-part').value = item.partNumber;
+          document.getElementById('edit-cat-name').value = item.name;
+          document.getElementById('edit-cat-category').value = item.category;
+          document.getElementById('edit-cat-unit').value = item.unit;
+          document.getElementById('edit-cat-spec').value = item.spec || '';
+          document.getElementById('edit-cat-frequent').checked = !!item.isFrequent;
+          state.tempEditCatalogImage = item.image || '';
+          document.getElementById('edit-cat-image-url').value = item.image && !item.image.startsWith('data:') ? item.image : '';
+        } else {
+          title.textContent = 'Add New Catalog Item';
+          document.getElementById('edit-cat-id').value = '';
+          document.getElementById('edit-cat-part').value = '';
+          document.getElementById('edit-cat-name').value = '';
+          document.getElementById('edit-cat-category').value = state.categories[0] || 'Access Control';
+          document.getElementById('edit-cat-unit').value = state.defaultUnit || 'ea';
+          document.getElementById('edit-cat-spec').value = '';
+          document.getElementById('edit-cat-frequent').checked = false;
+          state.tempEditCatalogImage = '';
+          document.getElementById('edit-cat-image-url').value = '';
+        }
+
+        updateCatalogFormPreview();
+        const m = document.getElementById('catalog-form-modal');
+        m.classList.remove('hidden');
+        m.classList.add('flex');
+      }
+
+      function updateCatalogFormPreview() {
+        const box = document.getElementById('edit-cat-preview-box');
+        if (state.tempEditCatalogImage) {
+          box.innerHTML = `<img src="${escapeHtml(state.tempEditCatalogImage)}" alt="Preview" class="w-full h-full object-cover" />`;
+        } else {
+          box.innerHTML = `<span class="text-[11px] font-bold text-slate-400">No Photo</span>`;
+        }
+      }
+
+      function handleCatalogImageFile(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxDim = 150;
+            let w = img.width;
+            let h = img.height;
+            if (w > h && w > maxDim) { h = Math.round((h * maxDim) / w); w = maxDim; }
+            else if (h >= w && h > maxDim) { w = Math.round((w * maxDim) / h); h = maxDim; }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            state.tempEditCatalogImage = canvas.toDataURL('image/jpeg', 0.8);
+            document.getElementById('edit-cat-image-url').value = '';
+            updateCatalogFormPreview();
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      async function saveCatalogFormItem() {
+        const id = document.getElementById('edit-cat-id').value;
+        const partNumber = document.getElementById('edit-cat-part').value.trim();
+        const name = document.getElementById('edit-cat-name').value.trim();
+        const category = document.getElementById('edit-cat-category').value;
+        const unit = document.getElementById('edit-cat-unit').value;
+        const spec = document.getElementById('edit-cat-spec').value.trim();
+        const isFrequent = document.getElementById('edit-cat-frequent').checked;
+
+        if (!partNumber || !name) {
+          showToast('Part # and Item Description are required.', 'error');
+          return;
+        }
+
+        if (id) {
+          const idx = state.catalog.findIndex(c => c.id === id);
+          if (idx !== -1) {
+            state.catalog[idx] = { ...state.catalog[idx], partNumber, name, category, unit, spec, isFrequent, image: state.tempEditCatalogImage };
+          }
+        } else {
+          state.catalog.unshift({
+            id: 'cat-' + Array.from(crypto.getRandomValues(new Uint8Array(8)), n => n.toString(16).padStart(2, '0')).join(''),
+            partNumber,
+            name,
+            category,
+            unit,
+            spec,
+            isFrequent,
+            image: state.tempEditCatalogImage
+          });
+        }
+
+        if (!(await persistAll())) return;
+        showToast(`${id ? 'Updated' : 'Added'} "${name}"`, 'success');
+        renderCatalogManagerTable();
+        renderFrequentItemsTable();
+        renderOrderLinesTable();
+        const m = document.getElementById('catalog-form-modal');
+        m.classList.add('hidden');
+        m.classList.remove('flex');
+      }
+
+      // -----------------------------------------------------------------------
+      // EXPORT, PRINT & HELPERS
+      // -----------------------------------------------------------------------
+      function formatOrderSummary(order) {
+        const lines = [
+          `MATERIAL ORDER: ${order.id} [${order.status.toUpperCase()}]`,
+          `Job / Site: ${order.jobSite} | PO #: ${order.woNumber}`,
+          `Tech: ${order.techName} | Needed By: ${order.dateNeeded} | Priority: ${order.priority} | Delivery: ${order.deliveryMethod}`,
+          `Items:`
+        ];
+        order.items.forEach((it, idx) => {
+          lines.push(`${idx + 1}. (${it.qty} ${it.unit}) [${it.partNumber}] ${it.name}${it.notes ? ' — ' + it.notes : ''}`);
+        });
+        if (order.orderNotes) lines.push(`Notes: ${order.orderNotes}`);
+        return lines.join('\n');
+      }
+
+      function ordersToCSV(list) {
+        const headers = ['Order ID', 'Status', 'Priority', 'Created', 'Needed By', 'Tech', 'Job / Site', 'PO #', 'Delivery', 'Part #', 'Description', 'Qty', 'Unit', 'Line Notes'];
+        const rows = [headers.join(',')];
+        list.forEach(o => {
+          o.items.forEach(it => {
+            rows.push([
+              o.id, o.status, o.priority, o.createdAt, o.dateNeeded, o.techName, o.jobSite, o.woNumber, o.deliveryMethod,
+              it.partNumber, it.name, it.qty, it.unit, it.notes || ''
+            ].map(v => {
+              const value = String(v);
+              const safe = /^[\s]*[=+\-@\t\r]/.test(value) ? "'" + value : value;
+              return `"${safe.replace(/"/g, '""')}"`;
+            }).join(','));
+          });
+        });
+        return rows.join('\n');
+      }
+
+      function printPickTicket(orderId) {
+        const order = state.orders.find(o => o.id === orderId);
+        if (!order) return;
+        const container = document.getElementById('print-ticket-container');
+        container.classList.remove('hidden');
+        container.innerHTML = `
+          <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
+            <div style="display:flex; justify-content:space-between; border-bottom:2px solid #000; padding-bottom:10px; margin-bottom:14px;">
+              <div><h1 style="margin:0; font-size:20px;">WAREHOUSE PICK TICKET</h1></div>
+              <div style="text-align:right; font-family:monospace; font-weight:bold; font-size:18px;">${escapeHtml(order.id)} (${escapeHtml(order.status)})</div>
+            </div>
+            <p style="font-size:13px; margin:4px 0;"><strong>Job / Site:</strong> ${escapeHtml(order.jobSite)} | <strong>PO #:</strong> ${escapeHtml(order.woNumber)}</p>
+            <p style="font-size:13px; margin:4px 0 14px;"><strong>Tech:</strong> ${escapeHtml(order.techName)} | <strong>Needed By:</strong> ${escapeHtml(order.dateNeeded)} | <strong>Priority:</strong> ${escapeHtml(order.priority)}</p>
+            <table style="width:100%; border-collapse:collapse; font-size:12px;">
+              <thead>
+                <tr style="background:#f1f5f9;">
+                  <th style="border:1px solid #999; padding:6px; width:40px;">Chk</th>
+                  <th style="border:1px solid #999; padding:6px; width:130px;">Part #</th>
+                  <th style="border:1px solid #999; padding:6px;">Description &amp; Notes</th>
+                  <th style="border:1px solid #999; padding:6px; width:85px; text-align:right;">Qty</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${order.items.map(it => `
+                  <tr>
+                    <td style="border:1px solid #999; padding:6px; text-align:center;">&#9744;</td>
+                    <td style="border:1px solid #999; padding:6px; font-family:monospace;">${escapeHtml(it.partNumber)}</td>
+                    <td style="border:1px solid #999; padding:6px;"><strong>${escapeHtml(it.name)}</strong>${it.notes ? ` (${escapeHtml(it.notes)})` : ''}</td>
+                    <td style="border:1px solid #999; padding:6px; text-align:right; font-weight:bold;">${it.qty} ${escapeHtml(it.unit)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+        window.print();
+        container.classList.add('hidden');
+      }
+
+      function downloadFile(content, filename, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      function copyTextToClipboard(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+
+      function setupAccountControls() {
+        document.getElementById('session-name').textContent = `${session.username} (${session.role})`;
+        if (session.role !== 'admin') {
+          document.getElementById('nav-settings').classList.add('hidden');
+          document.querySelectorAll('[data-action="export-json-backup"]').forEach(button => button.classList.add('hidden'));
+        }
+        if (session.role === 'technician') {
+          document.getElementById('nav-catalog').classList.add('hidden');
+          document.querySelectorAll('[data-action="switch-view"][data-view="catalog"]').forEach(button => button.classList.add('hidden'));
+          document.getElementById('orders-help').textContent = 'Your submitted orders and their fulfillment status.';
+        }
+        document.getElementById('refresh-data').addEventListener('click', async () => {
+          if (saving) return;
+          try {
+            await refreshData();
+            if (state.activeDetailOrderId) openOrderDetailModal(state.activeDetailOrderId);
+            showToast('Shared data refreshed.', 'success');
+          } catch (e) {
+            showToast(`Refresh failed: ${e.message}`, 'error');
+          }
+        });
+        setInterval(async () => {
+          if (saving || document.hidden || (state.activeView !== 'orders' && session.role === 'technician')) return;
+          try {
+            const latest = await request('state');
+            if (saving) return;
+            state.notifications = latest.notifications || [];
+            renderCatalogNotices();
+            if (state.activeView !== 'orders' || state.activeDetailOrderId) return;
+            applyServerState(latest);
+            syncCategoryAndUnitDropdowns();
+            renderOrdersFilterTabs();
+            renderOrdersTable();
+            updateNavBadges();
+          } catch (error) {
+            showToast(`Could not refresh orders: ${error.message}`, 'error');
+          }
+        }, 15000);
+      }
+
+      function showToast(msg, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const el = document.createElement('div');
+        const border = type === 'error' ? 'border-rose-500 bg-rose-950' : type === 'success' ? 'border-emerald-500 bg-slate-900' : 'border-amber-500 bg-slate-900';
+        el.className = `pointer-events-auto px-4 py-2.5 rounded-xl shadow-lg border-l-4 text-white text-xs font-semibold ${border}`;
+        el.textContent = msg;
+        container.appendChild(el);
+        setTimeout(() => el.remove(), type === 'error' ? 12000 : 3000);
+      }
+
+      function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('startup-retry').addEventListener('click', init);
+        init();
+      });
+    })();
+  </script>
+</body>
+</html>

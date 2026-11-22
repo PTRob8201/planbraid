@@ -1,0 +1,25 @@
+/*!
+ * PlanBraid - outlining, project tracking, and material orders.
+ * Copyright (C) 2026 Robert Wasniowski
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ * Licensed under GNU AGPL version 3 or later; see LICENSE in the release root.
+ * Distributed WITHOUT ANY WARRANTY, including MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+
+:root[data-design="modern"][data-theme="light"] {
+    --page: #eef4fa; --surface: #fff; --surface-soft: #e7f0f9;
+    --line: #cdddea; --text: #20364e; --muted: #516a80; --quiet: #6b8194;
+    --accent: #245c9e; --accent-soft: #e4effc; --focus: #1d508e; --action-text: #fff;
+}
+:root[data-design="modern"][data-theme="dark"] {
+    --page: #131e2c; --surface: #1e2c3c; --surface-soft: #283a4e;
+    --line: #40556c; --text: #edf5fd; --muted: #b7c8d8; --quiet: #9db1c4;
+    --accent: #91c3ff; --accent-soft: #263f5e; --focus: #a7d0ff; --action-text: #142234;
+}
+:root[data-design="modern"][data-theme="sepia"] { --accent: #315d8b; --accent-soft: #e6e5d8; --focus: #234e7c; }
+:root[data-design="modern"] :is(.sidebar, .modal, .agenda-card, .pm-board-card, .settings-card) { @apply rounded-xl; }
+:root[data-design="modern"] .sidebar { border-radius: 0; }
+:root[data-design="modern"] :is(.dashboard-section, .endless-project, #pm-separate-tasks, :is(#pm-project-header, #pm-site-info)) { box-shadow: 0 8px 24px rgba(30, 65, 98, .07); }
+:root[data-design="modern"] :is(.app, #modal-root) svg:not(.brand-mark) { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }

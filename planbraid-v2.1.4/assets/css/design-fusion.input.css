@@ -1,0 +1,26 @@
+/*!
+ * PlanBraid - outlining, project tracking, and material orders.
+ * Copyright (C) 2026 Robert Wasniowski
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ * Licensed under GNU AGPL version 3 or later; see LICENSE in the release root.
+ * Distributed WITHOUT ANY WARRANTY, including MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+
+:root[data-design="fusion"] { --design-radius: 16px; }
+:root[data-design="fusion"][data-theme="light"] {
+    --page: #f0f6f5; --surface: #fff; --surface-soft: #e7f2f0;
+    --line: #cbdedb; --text: #253e40; --muted: #526e6b; --quiet: #6c8783;
+    --accent: #267269; --accent-soft: #dbf1ea; --focus: #205e57; --action-text: #fff;
+}
+:root[data-design="fusion"][data-theme="dark"] {
+    --page: #172424; --surface: #223331; --surface-soft: #2d413e;
+    --line: #46605a; --text: #edf7f3; --muted: #bbcdc5; --quiet: #a4bbb2;
+    --accent: #9edbca; --accent-soft: #314d45; --focus: #b2ebdc; --action-text: #122b25;
+}
+:root[data-design="fusion"][data-theme="sepia"] { --accent: #376d60; --accent-soft: #e4ebd8; --focus: #2b5b4f; }
+:root[data-design="fusion"] :is(.project-outline-heading, #pm-separate-tasks, #project-agenda-content, .dashboard-section, .endless-project, :is(#pm-project-header, #pm-site-info), .modal, .agenda-card, .pm-board-card, .settings-card) { @apply rounded-2xl; box-shadow: 0 8px 24px rgba(30, 75, 64, .07); }
+:root[data-design="fusion"] #outline:not([hidden]) { @apply rounded-b-2xl; }
+:root[data-design="fusion"] .sidebar { border-top: 4px solid var(--accent); }
+:root[data-design="fusion"] :is(.app, #modal-root) svg:not(.brand-mark) { stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: bevel; }

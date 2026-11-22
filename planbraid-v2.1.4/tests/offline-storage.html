@@ -1,0 +1,60 @@
+<!doctype html>
+<!--
+PlanBraid - outlining, project tracking, and material orders.
+Copyright (C) 2026 Robert Wasniowski
+SPDX-License-Identifier: AGPL-3.0-or-later
+Licensed under GNU AGPL version 3 or later; see LICENSE in the release root.
+Distributed WITHOUT ANY WARRANTY, including MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+-->
+<meta charset="utf-8">
+<title>Offline storage test</title>
+<p id="result">Running…</p>
+<button id="offline-recovery-button" hidden></button>
+<div id="modal-root"></div>
+<script>
+let authenticated = true, currentAccountId = 1, revision = 4, editGeneration = 1;
+let savedGeneration = 0, serverUnavailable = true, syncBlocked = false;
+let state = { documents: [{ title: 'Synthetic note' }] };
+let instance = 'test-first';
+function getAppInstanceId() { return instance; }
+function showToast(message) { console.log(message); }
+function setSaveStatus(message) { document.body.dataset.status = message; }
+function hasUnsavedAgendaDraft() { return false; }
+function hasUnsavedSeparatePMDraft() { return false; }
+function closeModal() {}
+function normalizeState(value) { return value; }
+function scheduleSave() {}
+function render() {}
+</script>
+<script src="../assets/js/offline.js"></script>
+<script>
+(async () => {
+    const assert = (condition, message) => { if (!condition) throw new Error(message); };
+    try {
+        await offlineOperation('readwrite', store => store.clear());
+        queueLocalSnapshot();
+        await offlineWrites;
+        let records = await offlineOperation('readonly', store => store.getAll());
+        assert(records.length === 1 && records[0].revision === 4 && records[0].state.documents[0].title === 'Synthetic note', 'Snapshot was not persisted');
+        revision = 5;
+        editGeneration++;
+        state.documents[0].title = 'Newer synthetic note';
+        queueLocalSnapshot();
+        await offlineWrites;
+        records = await offlineOperation('readonly', store => store.getAll());
+        assert(records.length === 1 && records[0].revision === 5 && records[0].state.documents[0].title === 'Newer synthetic note', 'Latest snapshot did not replace the previous one');
+        instance = 'test-second';
+        assert(await refreshOfflineRecovery() === 1, 'Same-account recovery missing');
+        currentAccountId = 2;
+        assert(await refreshOfflineRecovery() === 0, 'Another account can see recovery copies');
+        currentAccountId = 1;
+        instance = 'test-first';
+        await removeCurrentLocalSnapshot();
+        assert((await offlineOperation('readonly', store => store.getAll())).length === 0, 'Snapshot was not deleted');
+        document.getElementById('result').textContent = 'PASS';
+    } catch (error) {
+        console.error(error);
+        document.getElementById('result').textContent = `FAIL: ${error.message}`;
+    }
+})();
+</script>
