@@ -19,18 +19,26 @@ to each extension and assigns Supply roles in **Manage accounts**.
 
 ## Hostinger upgrade
 
-The [v2.2.0 Hostinger release](https://github.com/PTRob8201/planbraid/releases/tag/v2.2.0-hostinger)
-is an upgrade for an existing v2.1.4 Hostinger installation, not a fresh
+The [v2.4.0 Hostinger release](https://github.com/PTRob8201/planbraid/tree/v2.4.0-hostinger)
+is an upgrade for an existing v2.2.0 Hostinger installation, not a fresh
 installer. Download the
-[Hostinger upgrade ZIP](https://github.com/PTRob8201/planbraid/blob/7b226a73a398eb328bbd430646738efc5d81ee81/planbraid-hostinger-v2.2.0.zip)
+[Hostinger upgrade ZIP](https://github.com/PTRob8201/planbraid/raw/v2.4.0-hostinger/planbraid-hostinger-v2.4.0.zip)
 from the tagged commit. GitHub's automatically generated source archives
 contain the repository, not a ready-to-deploy app directory.
+
+v2.4.0 adds private/shared tasks and project grouping, the Walkthrough and
+Files extensions, private Continuum, device-aware dark landing and sign-in
+pages, and administrator visitor statistics.
 
 Before upgrading, schedule downtime and verify backups of the application
 files, private configuration, MySQL database, and Supply SQLite database.
 Extract the ZIP outside the web root and follow its `README.md`; preserve the
-existing `.htaccess` and private data. No database migration is required when
-upgrading from v2.1.4 to this package.
+existing `.htaccess` and private data. This upgrade **requires** running the
+additive database migrations in the package's `tools/` directory before
+copying `public_html/`.
+
+The package includes the DB-IP Country Lite database by
+[DB-IP](https://db-ip.com), licensed under CC BY 4.0.
 
 ## Source and license
 
