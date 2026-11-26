@@ -17,6 +17,18 @@ work, and managing material orders. Visit [planbraid.com](https://planbraid.com/
 PM and Supply use the same PlanBraid login. An administrator controls access
 to each extension and assigns Supply roles in **Manage accounts**.
 
+## Hostinger fresh installation
+
+For a **new, empty** Hostinger site, download the
+[v2.4.0 fresh-install ZIP](https://github.com/PTRob8201/planbraid/raw/v2.4.0-hostinger-fresh/planbraid-hostinger-v2.4.0-fresh-install.zip)
+and follow its `README.md`. It requires an empty MySQL/MariaDB database, PHP
+8.1 or later, HTTPS, and interactive SSH access. The installer creates the
+first administrator and an empty Supply database; it does not import existing
+accounts or data.
+
+Do not use the fresh installer to upgrade an existing site. Its SHA-256 is
+`751332eb5d38323e1dbfbb85ea1d44ac90e6b24ad32394035eec666e3dea033a`.
+
 ## Hostinger upgrade
 
 The [v2.4.0 Hostinger release](https://github.com/PTRob8201/planbraid/tree/v2.4.0-hostinger)
@@ -42,8 +54,8 @@ The package includes the DB-IP Country Lite database by
 
 ## Source and license
 
-The upgrade ZIP includes the application source and a `planbraid-source.zip`
+Both Hostinger ZIPs include application source and a `planbraid-source.zip`
 for the deployed app. The deployed source is also available from the app's
 License dialog. The application source is licensed under the GNU AGPL v3 or
-later; see `public_html/LICENSE` in the upgrade package. The PlanBraid name
-and logo are not licensed under the AGPL.
+later; see `public_html/LICENSE` in the packages. The PlanBraid name and logo
+are not licensed under the AGPL.
